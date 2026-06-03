@@ -11,7 +11,7 @@ intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # ⚠️ ضع هنا آيدي روم التقييمات العامة (التي ستظهر فيها جميع التقييمات والمعدل)
-VOUCH_CHANNEL_ID = 123456789012345678  
+VOUCH_CHANNEL_ID = 1511668692889370735
 
 # متغيرات لحفظ إحصائيات التقييم المتعادل (الحسابي) في ذاكرة البوت
 total_stars = 0.0
