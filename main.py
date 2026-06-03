@@ -4,20 +4,24 @@ from discord.ext import commands
 from discord import ui
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import threading
+import re  # مكتبة للتحقق من الأسماء والأرقام بدقة
 
-# إعداد الصلاحيات الأساسية للبوت لقراءة الرسائل
+# إعداد الصلاحيات الكاملة للبوت
 intents = discord.Intents.default()
 intents.message_content = True
+intents.guilds = True
+intents.members = True
+
+# تحديد بادئة الأوامر
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# ⚠️ ضع هنا آيدي روم التقييمات العامة (التي ستظهر فيها جميع التقييمات والمعدل)
-VOUCH_CHANNEL_ID = 1511668692889370735
+# آيدي روم التقييمات العامة الخاص بسيرفرك (التي ستظهر فيها جميع التقييمات)
+VOUCH_CHANNEL_ID = 1511668692889370735  
 
-# متغيرات لحفظ إحصائيات التقييم المتعادل (الحسابي) في ذاكرة البوت
+# متغيرات التقييم المتعادل
 total_stars = 0.0
 total_vouches = 0
 
-# القائمة المنسدلة لاختيار النجوم من 0 إلى 5
 class StarSelect(ui.Select):
     def __init__(self):
         options = [
@@ -31,14 +35,12 @@ class StarSelect(ui.Select):
         super().__init__(placeholder="اختر تقييمك من 0 إلى 5...", min_values=1, max_values=1, options=options)
 
     async def callback(self, interaction: discord.Interaction):
-        # بعد اختيار النجوم، نفتح للمشتري نافذة كود لكتابة رأيه بالتفصيل
-        await interaction.response.send_modal(VouchTextModal(stars_numeric=int(self.values[0])))
+        await interaction.response.send_modal(VouchTextModal(stars_numeric=int(self.values)))
 
-# النافذة المنبثقة لكتابة الرأي والنص
 class VouchTextModal(ui.Modal, title="اكتب تجربتك 💬"):
     def __init__(self, stars_numeric):
         super().__init__()
-        self.stars_numeric = stars_numeric # حفظ الرقم المختار (من 0 إلى 5)
+        self.stars_numeric = stars_numeric
         
         self.feedback = ui.TextInput(
             label="اكتب تقييمك وتجربتك هنا:",
@@ -52,48 +54,38 @@ class VouchTextModal(ui.Modal, title="اكتب تجربتك 💬"):
     async def on_submit(self, interaction: discord.Interaction):
         global total_stars, total_vouches
         
-        # البحث عن الروم العامة للتقييمات
         channel = bot.get_channel(VOUCH_CHANNEL_ID)
         if not channel:
-            await interaction.response.send_message("❌ لم يتم العثور على روم التقييمات، تأكد من تغيير الآيدي داخل الكود.", ephemeral=True)
+            await interaction.response.send_message("❌ لم يتم العثور على روم التقييمات العامة، تأكد من صلاحيات البوت داخل السيرفر.", ephemeral=True)
             return
 
-        # تحديث الحسابات للتقييم المتعادل
         total_stars += self.stars_numeric
         total_vouches += 1
-        average_rating = total_stars / total_vouches # حساب المعدل المتعادل
+        average_rating = total_stars / total_vouches
 
-        # رسم النجوم بناءً على الاختيار للجمالية
         star_emojis = "⭐" * self.stars_numeric if self.stars_numeric > 0 else "❌"
 
-        # تصميم شكل التقييم الحالي (Embed) الذي سيُنشر في الروم العامة للجميع
         embed = discord.Embed(title="📥 تقييم جديد للمتجر!", color=discord.Color.green())
         embed.add_field(name="👤 العميل المشتري:", value=interaction.user.mention, inline=False)
         embed.add_field(name="⭐ تقييمه للطلب:", value=f"{star_emojis} ({self.stars_numeric}/5)", inline=True)
         embed.add_field(name="💬 رأي العميل وتجربته:", value=self.feedback.value, inline=False)
-        
-        # إضافة جزء التقييم المتعادل والإحصائيات العامة للمتجر أسفل الرسالة
         embed.add_field(
             name="📊 إحصائيات المتجر (تقييم متعادل):", 
             value=f"📈 معدل التقييم الحالي: **{average_rating:.1f}/5**\n👥 إجمالي عدد المقيّمين: **{total_vouches}**", 
             inline=False
         )
-        embed.set_thumbnail(url=interaction.user.display_avatar.url)
+        if interaction.user.display_avatar:
+            embed.set_thumbnail(url=interaction.user.display_avatar.url)
 
-        # إرسال الرسالة إلى الروم العامة ليراها الجميع
         await channel.send(embed=embed)
-        
-        # رسالة شكر مخفية تظهر للمشتري وحده كإشعار
-        await interaction.response.send_message("✅ بيض الله وجهك! تم تسجيل تقييمك وحساب المعدل بنجاح.", ephemeral=True)
+        await interaction.response.send_message("✅ بيض الله وجهك! تم تسجيل تقييمك وحساب المعدل بنجاح وسيظهر في روم التقييمات العامة.", ephemeral=True)
 
-# إنشاء الزر التفاعلي الذي يظهر تحت الرسالة الأساسية
 class VouchView(ui.View):
     def __init__(self):
-        super().__init__(timeout=None) # الزر سيبقى شغالاً دائماً ولن يتوقف
+        super().__init__(timeout=None)
 
     @ui.button(label="اضغط هنا لكتابة تقييمك ⭐", style=discord.ButtonStyle.success)
     async def vouch_button(self, interaction: discord.Interaction, button: ui.Button):
-        # عند الضغط على الزر، تظهر قائمة الاختيارات من 0 إلى 5
         view = ui.View()
         view.add_item(StarSelect())
         await interaction.response.send_message("الرجاء اختيار عدد النجوم من القائمة أدناه لتحديد تقييمك للمنتج:", view=view, ephemeral=True)
@@ -102,19 +94,28 @@ class VouchView(ui.View):
 async def on_ready():
     print(f"✅ البوت شغال الآن باسم: {bot.user}")
 
-# أمر المشرفين لإنشاء رسالة التقييم في روم الشراء
+@bot.event
+async def on_message(message):
+    if message.author == bot.user:
+        return
+    await bot.process_commands(message)
+
+# أمر التقييم مع شرط التحقق من اسم الروم (ticket-أرقام)
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def vouch(ctx):
-    embed = discord.Embed(
-        title="🛒 صندوق تقييم المنتجات والخدمات",
-        description="عميلنا العزيز، إذا قمت بشراء منتج أو خدمة منا، يسعدنا جداً أن تترك تقييمك لدعم المتجر بالضغط على الزر الأخضر بالأسفل!",
-        color=discord.Color.blue()
-    )
-    # إرسال الرسالة المنسقة مع الزر الأخضر
-    await ctx.send(embed=embed, view=VouchView())
+    # استخدام التعبير النمطي (Regex) للتأكد أن اسم الروم يبدأ بـ ticket- متبوعاً بأرقام فقط
+    if re.match(r"^ticket-\d+$", ctx.channel.name):
+        embed = discord.Embed(
+            title="🛒 صندوق تقييم المنتجات والخدمات",
+            description="عميلنا العزيز، يسعدنا جداً أن تترك تقييمك لدعم المتجر بالضغط على الزر الأخضر بالأسفل!",
+            color=discord.Color.blue()
+        )
+        await ctx.send(embed=embed, view=VouchView())
+    else:
+        # رسالة تنبيه سرية للإداري تفيد بأن الروم غير مدعومة
+        await ctx.reply("❌ هذا الأمر مخصص للعمل داخل رومات التيكيت فقط التي تبدأ بـ `ticket-` متبوعة بأرقام.", delete_after=5)
 
-# كود إضافي لإبقاء البوت شغالاً على السيرفرات السحابية كـ Web Service
 class MyServer(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -127,5 +128,4 @@ def run_server():
 
 threading.Thread(target=run_server, daemon=True).start()
 
-# تشغيل البوت عبر التوكن المحفوظ في المتغيرات
 bot.run(os.environ['DISCORD_TOKEN'])
