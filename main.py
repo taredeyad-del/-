@@ -1,15 +1,16 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import threading
+import asyncio
 
 # 🌍 خادم ويب وهمي لمنع ظهور خطأ المنافذ (Ports) في منصة Render
 class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b'Bot is running perfectly!')
+        self.wfile.write(b'BSELL STORE Bot is running perfectly!')
 
 def run_web_server():
     port = int(os.environ.get("PORT", 8080))
@@ -22,26 +23,33 @@ web_thread.daemon = True
 web_thread.start()
 
 # ----------------- إعدادات البوت والصلاحيات -----------------
-# ⚠️ تم تفعيل صلاحية الأعضاء (members) لكي يتمكن البوت من معرفة دخولهم للسيرفر
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True  
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# ✅ إيدي روم التقييمات الخاص بك
-VOUCH_CHANNEL_ID = 1511668692889370735  
+# ✅ إيديات الرومات الخاصة بسيرفرك
+WELCOME_CHANNEL_ID = 1511571690294083716      # روم الترحيب
+VOUCH_CHANNEL_ID = 1511668692889370735        # روم التقييمات
+ANTI_SLEEP_CHANNEL_ID = 1511557359800025088   # روم منع النوم المخصص (anti sleep bot)
 
-# ✅ ⚠️ ضَع هنا إيدي (ID) روم الترحيب الذي تريد إرسال رسائل الدخول فيه
-WELCOME_CHANNEL_ID = 1511571690294083716  
 
+# ----------------- نظام منع النوم التلقائي الذكي -----------------
+@tasks.loop(minutes=1)
+async def keep_alive_ping():
+    channel = bot.get_channel(ANTI_SLEEP_CHANNEL_ID)
+    if channel:
+        try:
+            # يرسل رسالة النشاط ويتركها في الروم بدون حذف لضمان بقائه مستيقظاً
+            await channel.send("🤖 البوت نشط حالياً...")
+        except Exception:
+            pass
 
 # ----------------- نظام الترحيب بالأعضاء -----------------
 @bot.event
 async def on_member_join(member):
-    # جلب قناة الترحيب المحددة
     welcome_channel = bot.get_channel(WELCOME_CHANNEL_ID)
     if welcome_channel:
-        # إرسال رسالة الترحيب المطلوبة مع منشن للعضو
         await welcome_channel.send(f"أهلاً بك {member.mention} نورت السيرفر! ✨")
 
 
@@ -101,6 +109,8 @@ class RatingButtons(discord.ui.View):
 @bot.event
 async def on_ready():
     print(f"✅ البوت جاهز ويعمل بكامل ميزاته باسم: {bot.user}")
+    if not keep_alive_ping.is_running():
+        keep_alive_ping.start()
 
 @bot.command(name="vouch")
 async def vouch(ctx, *, message: str = None):
