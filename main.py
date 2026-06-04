@@ -37,7 +37,6 @@ class RatingButtons(discord.ui.View):
         self.author = author
 
     async def process_rating(self, interaction: discord.Interaction, stars: int):
-        # التحقق من أن المشتري هو نفسه من يضغط على الزر
         if interaction.user.id != self.author.id:
             await interaction.response.send_message("❌ | هذه الأزرار ليست لك!", ephemeral=True)
             return
@@ -50,16 +49,16 @@ class RatingButtons(discord.ui.View):
         # إنشاء شكل النجوم التعبيرية
         stars_string = "⭐" * stars + "☆" * (5 - stars)
 
-        # بناء رسالة الإمبيد الاحترافية النهائية
+        # بناء رسالة الإمبيد الاحترافية النهائية (تم استبدال اسم المتجر بـ BSELL STORE)
         embed = discord.Embed(
             title="Customer Rating",
             description=f"{stars_string} {stars}/5\n\n{self.user_message}\n\n*— Anonymous Customer*",
             color=discord.Color.from_rgb(255, 215, 0)
         )
         
-        embed.set_author(name="bl4nk Market", icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
+        embed.set_author(name="BSELL STORE", icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
         embed.set_thumbnail(url=interaction.guild.icon.url if interaction.guild.icon else self.author.avatar.url)
-        embed.set_footer(text="bl4nk Market • Verified Purchase", icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
+        embed.set_footer(text="BSELL STORE • Verified Purchase", icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
         
         # إرسال التقييم النهائي للقناة العامة
         await vouch_channel.send(embed=embed)
@@ -68,7 +67,7 @@ class RatingButtons(discord.ui.View):
         await interaction.response.edit_message(content=f"✅ تم إرسال تقييمك بنجاح في {vouch_channel.mention}!", view=None)
         self.stop()
 
-    # أزرار التقييم التفاعلية المحدثة
+    # أزرار التقييم التفاعلية
     @discord.ui.button(label="1 ⭐", style=discord.ButtonStyle.secondary, custom_id="star_1")
     async def star_1(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.process_rating(interaction, 1)
@@ -79,7 +78,7 @@ class RatingButtons(discord.ui.View):
 
     @discord.ui.button(label="3 ⭐", style=discord.ButtonStyle.secondary, custom_id="star_3")
     async def star_3(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.process_rating(interaction, 4) # تم تعديل الرقم الداخلي ليعمل بالشكل المطلوب
+        await self.process_rating(interaction, 3)
 
     @discord.ui.button(label="4 ⭐", style=discord.ButtonStyle.secondary, custom_id="star_4")
     async def star_4(self, interaction: discord.Interaction, button: discord.ui.Button):
