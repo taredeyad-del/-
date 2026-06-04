@@ -21,15 +21,31 @@ web_thread = threading.Thread(target=run_web_server)
 web_thread.daemon = True
 web_thread.start()
 
-# ----------------- إعدادات البوت -----------------
+# ----------------- إعدادات البوت والصلاحيات -----------------
+# ⚠️ تم تفعيل صلاحية الأعضاء (members) لكي يتمكن البوت من معرفة دخولهم للسيرفر
 intents = discord.Intents.default()
 intents.message_content = True
+intents.members = True  
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # ✅ إيدي روم التقييمات الخاص بك
 VOUCH_CHANNEL_ID = 1511668692889370735  
 
-# كلاس الأزرار المصلح بالكامل
+# ✅ ⚠️ ضَع هنا إيدي (ID) روم الترحيب الذي تريد إرسال رسائل الدخول فيه
+WELCOME_CHANNEL_ID = 1511571690294083716  
+
+
+# ----------------- نظام الترحيب بالأعضاء -----------------
+@bot.event
+async def on_member_join(member):
+    # جلب قناة الترحيب المحددة
+    welcome_channel = bot.get_channel(WELCOME_CHANNEL_ID)
+    if welcome_channel:
+        # إرسال رسالة الترحيب المطلوبة مع منشن للعضو
+        await welcome_channel.send(f"أهلاً بك {member.mention} نورت السيرفر! ✨")
+
+
+# ----------------- كلاس الأزرار الخاص بالتقييمات -----------------
 class RatingButtons(discord.ui.View):
     def __init__(self, user_message, author):
         super().__init__(timeout=120) 
@@ -46,10 +62,8 @@ class RatingButtons(discord.ui.View):
             await interaction.response.send_message("❌ | لم يتم العثور على قناة التقييمات العامة.", ephemeral=True)
             return
 
-        # إنشاء شكل النجوم التعبيرية
         stars_string = "⭐" * stars + "☆" * (5 - stars)
 
-        # بناء رسالة الإمبيد الاحترافية النهائية (تمت إضافة يوزر المقيم هنا)
         embed = discord.Embed(
             title="Customer Rating",
             description=f"{stars_string} {stars}/5\n\n{self.user_message}\n\n**Buyer:** {self.author.mention} ({self.author.name})",
@@ -60,14 +74,10 @@ class RatingButtons(discord.ui.View):
         embed.set_thumbnail(url=interaction.guild.icon.url if interaction.guild.icon else self.author.avatar.url)
         embed.set_footer(text="BSELL STORE • Verified Purchase", icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
         
-        # إرسال التقييم النهائي للقناة العامة
         await vouch_channel.send(embed=embed)
-        
-        # تحديث الرسالة الحالية وحذف الأزرار بنجاح وبدون أخطاء
         await interaction.response.edit_message(content=f"✅ تم إرسال تقييمك بنجاح في {vouch_channel.mention}!", view=None)
         self.stop()
 
-    # أزرار التقييم التفاعلية
     @discord.ui.button(label="1 ⭐", style=discord.ButtonStyle.secondary, custom_id="star_1")
     async def star_1(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.process_rating(interaction, 1)
@@ -90,9 +100,8 @@ class RatingButtons(discord.ui.View):
 
 @bot.event
 async def on_ready():
-    print(f"✅ تم إصلاح البوت بنجاح وهو يعمل الآن باسم: {bot.user}")
+    print(f"✅ البوت جاهز ويعمل بكامل ميزاته باسم: {bot.user}")
 
-# تعديل أمر التقييم ليقبل أي نص مكتوب بدون قيود
 @bot.command(name="vouch")
 async def vouch(ctx, *, message: str = None):
     if "🟡" not in ctx.channel.name:
@@ -116,5 +125,4 @@ async def on_message(message):
         return
     await bot.process_commands(message)
 
-# تشغيل البوت عبر التوكن الآمن
 bot.run(os.getenv("DISCORD_TOKEN"))
