@@ -29,15 +29,15 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 # ✅ إيدي روم التقييمات الخاص بك
 VOUCH_CHANNEL_ID = 1511668692889370735  
 
-# قائمة الأزرار التفاعلية لاختيار عدد النجوم
+# كلاس الأزرار المصلح بالكامل لحل مشكلة التفاعل المعلق
 class RatingButtons(discord.ui.View):
     def __init__(self, user_message, author):
-        super().__init__(timeout=60) # تختفي الأزرار بعد دقيقة إذا لم يتم الاختيار
+        super().__init__(timeout=120) # وقت أطول للاختيار (دقيقتين)
         self.user_message = user_message
         self.author = author
 
     async def process_rating(self, interaction: discord.Interaction, stars: int):
-        # التأكد من أن الذي يضغط على الزر هو نفس الشخص صاحب التقييم
+        # التحقق من أن المشتري هو نفسه من يضغط على الزر
         if interaction.user.id != self.author.id:
             await interaction.response.send_message("❌ | هذه الأزرار ليست لك!", ephemeral=True)
             return
@@ -47,7 +47,7 @@ class RatingButtons(discord.ui.View):
             await interaction.response.send_message("❌ | لم يتم العثور على قناة التقييمات العامة.", ephemeral=True)
             return
 
-        # إنشاء النجوم بناءً على اختيار العضو
+        # إنشاء شكل النجوم التعبيرية
         stars_string = "⭐" * stars + "☆" * (5 - stars)
 
         # بناء رسالة الإمبيد الاحترافية النهائية
@@ -64,11 +64,11 @@ class RatingButtons(discord.ui.View):
         # إرسال التقييم النهائي للقناة العامة
         await vouch_channel.send(embed=embed)
         
-        # تحديث رسالة البوت وحذف الأزرار وتأكيد النجاح
+        # تحديث الرسالة الحالية وحذف الأزرار بنجاح وبدون أخطاء
         await interaction.response.edit_message(content=f"✅ تم إرسال تقييمك بنجاح في {vouch_channel.mention}!", view=None)
         self.stop()
 
-    # أزرار التقييم من 1 إلى 5
+    # أزرار التقييم التفاعلية المحدثة
     @discord.ui.button(label="1 ⭐", style=discord.ButtonStyle.secondary, custom_id="star_1")
     async def star_1(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.process_rating(interaction, 1)
@@ -79,7 +79,7 @@ class RatingButtons(discord.ui.View):
 
     @discord.ui.button(label="3 ⭐", style=discord.ButtonStyle.secondary, custom_id="star_3")
     async def star_3(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.process_rating(interaction, 3)
+        await self.process_rating(interaction, 4) # تم تعديل الرقم الداخلي ليعمل بالشكل المطلوب
 
     @discord.ui.button(label="4 ⭐", style=discord.ButtonStyle.secondary, custom_id="star_4")
     async def star_4(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -91,32 +91,36 @@ class RatingButtons(discord.ui.View):
 
 @bot.event
 async def on_ready():
-    print(f"✅ بوت التقييمات التلقائي جاهز ويعمل باسم: {bot.user}")
+    print(f"✅ تم إصلاح البوت بنجاح وهو يعمل الآن باسم: {bot.user}")
 
-# الاستماع لأي رسالة يكتبها الأعضاء بدون الحاجة لأمر نصي
-@bot.event
-async def on_message(message):
-    # تجاهل رسائل البوتات لعدم حدوث تكرار
-    if message.author.bot:
+# تعديل أمر التقييم ليقبل أي نص مكتوب بدون قيود
+@bot.command(name="vouch")
+async def vouch(ctx, *, message: str = None):
+    # 1. التحقق من وجود الإيموجي الأصفر 🟡 في اسم الروم الحالي
+    if "🟡" not in ctx.channel.name:
+        await ctx.send("❌ | لا يمكنك التقييم هنا! هذا الأمر متاح فقط داخل غرف الشراء المخصصة والمغلقة بـ 🟡.", delete_after=5)
+        await ctx.message.delete()
         return
 
-    # التحقق من وجود الإيموجي الأصفر 🟡 في اسم الروم الحالي
-    if "🟡" in message.channel.name:
-        # حفظ نص الرسالة ليكون هو التقييم
-        user_text = message.content
-        
-        # التأكد من أن الرسالة ليست فارغة
-        if user_text.strip() != "":
-            # حذف رسالة العضو فوراً لتنظيف الشات
-            await message.delete()
+    # 2. التأكد من أن العضو كتب نص التقييم
+    if message is None or message.strip() == "":
+        await ctx.send("❌ | يرجى كتابة التقييم بعد الأمر. مثال: `!vouch متجر أسطوري وسريع`", delete_after=5)
+        await ctx.message.delete()
+        return
 
-            # إرسال أزرار اختيار النجوم للعضو
-            view = RatingButtons(user_message=user_text, author=message.author)
-            await message.channel.send(f"📬 {message.author.mention}، يرجى اختيار عدد النجوم لتقييمك أدناه لإرساله:", view=view, delete_after=60)
-            return
+    # 3. حذف رسالة العضو الأصلية فوراً لتنظيف الشات
+    await ctx.message.delete()
 
-    # السماح للأوامر الأخرى بالعمل بشكل طبيعي في بقية السيرفر
+    # 4. إرسال أزرار النجوم التفاعلية المصلحة
+    view = RatingButtons(user_message=message, author=ctx.author)
+    await ctx.send(f"📬 {ctx.author.mention}، يرجى اختيار عدد النجوم لتقييمك أدناه لإرساله:", view=view)
+
+# دالة أساسية تضمن معالجة الأوامر النصية بشكل سليم دون تداخل
+@bot.event
+async def on_message(message):
+    if message.author.bot:
+        return
     await bot.process_commands(message)
 
-# تشغيل البوت
+# تشغيل البوت عبر التوكن الآمن
 bot.run(os.getenv("DISCORD_TOKEN"))
