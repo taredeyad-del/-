@@ -28,20 +28,21 @@ intents.message_content = True
 intents.members = True  
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# ✅ إيديات الرومات الخاصة بسيرفرك معدلة وجاهزة
+# ✅ إيديات الرومات الخاصة بسيرفرك معدلة وجاهزة بنسبة 100%
 WELCOME_CHANNEL_ID = 1511571690294083716      # روم الترحيب
 VOUCH_CHANNEL_ID = 1511668692889370735        # روم التقييمات
 ANTI_SLEEP_CHANNEL_ID = 1511557359800025088   # روم منع النوم المخصص (anti sleep bot)
 LOG_CHANNEL_ID = 1512027662665777152          # روم السجلات واللوج الموحد
 
 
-# ----------------- نظام منع النوم التلقائي الذكي -----------------
-@tasks.loop(minutes=1)
+# ----------------- نظام منع النوم التلقائي الذكي (كل 10 ثوانٍ) -----------------
+@tasks.loop(seconds=10)
 async def keep_alive_ping():
     channel = bot.get_channel(ANTI_SLEEP_CHANNEL_ID)
     if channel:
         try:
-            await channel.send("🤖 البوت نشط حالياً...")
+            # يرسل رسالة نشاط كل 10 ثوانٍ ويتركها لضمان بقائه أونلاين دائماً في Render
+            await channel.send("🤖 البوت نشط حالياً والعمل مستمر...")
         except Exception:
             pass
 
@@ -82,7 +83,6 @@ async def on_message_delete(message):
 # ----------------- نظام سجل الرسائل المعدلة -----------------
 @bot.event
 async def on_message_edit(before, after):
-    # تجاهل البوتات وتجاهل التعديلات التلقائية إذا لم يتغير النص (مثل قراءة روابط)
     if before.author.bot or before.content == after.content:
         return
 
@@ -108,7 +108,6 @@ async def on_member_update(before, after):
     if not log_channel:
         return
 
-    # 1. التحقق من تغيير اللقب داخل السيرفر (Server Nickname)
     if before.nick != after.nick:
         old_nick = before.nick if before.nick else before.name
         new_nick = after.nick if after.nick else after.name
