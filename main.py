@@ -1,233 +1,111 @@
 import discord
 from discord.ext import commands, tasks
 import os
-from http.server import BaseHTTPRequestHandler, HTTPServer
-import threading
-import asyncio
 
-# 🌍 خادم ويب وهمي لمنع ظهور خطأ المنافذ (Ports) في منصة Render
-class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b'BSELL STORE Bot is running perfectly!')
-
-def run_web_server():
-    port = int(os.environ.get("PORT", 8080))
-    server = HTTPServer(('0.0.0.0', port), SimpleHTTPRequestHandler)
-    print(f"🌍 Web server started on port {port}")
-    server.serve_forever()
-
-web_thread = threading.Thread(target=run_web_server)
-web_thread.daemon = True
-web_thread.start()
-
-# ----------------- إعدادات البوت والصلاحيات -----------------
 intents = discord.Intents.default()
-intents.message_content = True
-intents.members = True  
+intents.message_content, intents.members = True, True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# ✅ إيديات الرومات الخاصة بسيرفرك معدلة وجاهزة بنسبة 100%
-WELCOME_CHANNEL_ID = 1511571690294083716      # روم الترحيب
-VOUCH_CHANNEL_ID = 1511668692889370735        # روم التقييمات
-ANTI_SLEEP_CHANNEL_ID = 1511557359800025088   # روم منع النوم المخصص (anti sleep bot)
-LOG_CHANNEL_ID = 1512027662665777152          # روم السجلات واللوج الموحد
+# إيديات القنوات الخاصة بسيرفرك
+WELCOME_CH, VOUCH_CH, SLEEP_CH, LOG_CH = 1511571690294083716, 1511668692889370735, 1511557359800025088, 1512027662665777152
 
-
-# ----------------- نظام منع النوم التلقائي الذكي (كل 10 ثوانٍ) -----------------
-@tasks.loop(seconds=10)
-async def keep_alive_ping():
-    channel = bot.get_channel(ANTI_SLEEP_CHANNEL_ID)
-    if channel:
-        try:
-            await channel.send("🤖 البوت نشط حالياً والعمل مستمر...")
-        except Exception:
-            pass
-
-# ----------------- نظام الترحيب بالأعضاء -----------------
-@bot.event
-async def on_member_join(member):
-    welcome_channel = bot.get_channel(WELCOME_CHANNEL_ID)
-    if welcome_channel:
-        await welcome_channel.send(f"أهلاً بك {member.mention} نورت السيرفر! ✨")
-
-
-# ----------------- نظام سجل الرسائل المحذوفة -----------------
-@bot.event
-async def on_message_delete(message):
-    if message.author.bot:
-        return
-
-    log_channel = bot.get_channel(LOG_CHANNEL_ID)
-    if log_channel:
-        content = message.content if message.content else "*الرسالة لا تحتوي على نص (قد تكون صورة أو إيموجي فقط)*"
-        
-        embed = discord.Embed(
-            title="🗑️ رسالة محذوفة",
-            color=discord.Color.red(),
-            timestamp=message.created_at
-        )
-        embed.add_field(name="العضو:", value=f"{message.author.mention} ({message.author.name})", inline=True)
-        embed.add_field(name="الروم:", value=message.channel.mention, inline=True)
-        embed.add_field(name="المحتوى:", value=content, inline=False)
-        
-        if message.attachments:
-            links = "\n".join([att.url for att in message.attachments])
-            embed.add_field(name="المرفقات المحذوفة:", value=links, inline=False)
-            
-        await log_channel.send(embed=embed)
-
-
-# ----------------- نظام سجل الرسائل المعدلة المتطور (Raw) -----------------
-@bot.event
-async def on_raw_message_edit(payload):
-    # جلب روم اللوج أولاً
-    log_channel = bot.get_channel(LOG_CHANNEL_ID)
-    if not log_channel:
-        return
-
-    # التحقق من البيانات الجديدة المستلمة من التعديل
-    data = payload.data
-    author_data = data.get("author")
-    
-    # تجنب تسجيل تعديلات البوتات نفسها
-    if author_data and author_data.get("bot"):
-        return
-
-    # جلب بيانات الروم الذي تم التعديل فيه
-    channel = bot.get_channel(payload.channel_id)
-    channel_mention = channel.mention if channel else f"روم غير معروف (ID: {payload.channel_id})"
-
-    # تحديد كاتب الرسالة
-    user_mention = f"<@{author_data['id']}>" if author_data else "مستخدم غير معروف"
-
-    # جلب النص الجديد بعد التعديل
-    new_content = data.get("content", "*لا يوجد نص (قد تكون مرفقات)*")
-
-    # محاولة جلب النص القديم المخزن مؤقتاً (إن وُجد)
-    if payload.cached_message:
-        old_content = payload.cached_message.content
-        # إذا لم يتغير النص الفعلي (تحديث تلقائي للروابط مثلاً)، نتجاهل التعديل
-        if old_content == new_content:
-            return
-    else:
-        old_content = "*الرسالة قديمة جداً ولم تكن مخزنة في الذاكرة المؤقتة للـ Bot*"
-
-    # إنشاء الإمبيد الاحترافي للرسائل المعدلة باللون البرتقالي
-    embed = discord.Embed(
-        title="📝 رسالة معدلة",
-        color=discord.Color.orange()
-    )
-    embed.add_field(name="العضو:", value=user_mention, inline=True)
-    embed.add_field(name="الروم:", value=channel_mention, inline=True)
-    embed.add_field(name="النص القديم:", value=old_content, inline=False)
-    embed.add_field(name="النص الجديد:", value=new_content, inline=False)
-    
-    await log_channel.send(embed=embed)
-
-
-# ----------------- نظام سجل تغيير الأسماء -----------------
-@bot.event
-async def on_member_update(before, after):
-    log_channel = bot.get_channel(LOG_CHANNEL_ID)
-    if not log_channel:
-        return
-
-    if before.nick != after.nick:
-        old_nick = before.nick if before.nick else before.name
-        new_nick = after.nick if after.nick else after.name
-        
-        embed = discord.Embed(
-            title="👤 تغيير اللقب بالسيرفر",
-            color=discord.Color.blue()
-        )
-        embed.add_field(name="العضو:", value=after.mention, inline=False)
-        embed.add_field(name="اللقب القديم:", value=old_nick, inline=True)
-        embed.add_field(name="اللقب الجديد:", value=new_nick, inline=True)
-        await log_channel.send(embed=embed)
-
-
-# ----------------- كلاس الأزرار الخاص بالتقييمات -----------------
 class RatingButtons(discord.ui.View):
-    def __init__(self, user_message, author):
-        super().__init__(timeout=120) 
-        self.user_message = user_message
-        self.author = author
+    def __init__(self, msg, auth):
+        super().__init__(timeout=120)
+        self.msg, self.auth = msg, auth
 
-    async def process_rating(self, interaction: discord.Interaction, stars: int):
-        if interaction.user.id != self.author.id:
-            await interaction.response.send_message("❌ | هذه الأزرار ليست لك!", ephemeral=True)
-            return
-
-        vouch_channel = bot.get_channel(VOUCH_CHANNEL_ID)
-        if not vouch_channel:
-            await interaction.response.send_message("❌ | لم يتم العثور على قناة التقييمات العامة.", ephemeral=True)
-            return
-
-        stars_string = "⭐" * stars + "☆" * (5 - stars)
-
-        embed = discord.Embed(
-            title="Customer Rating",
-            description=f"{stars_string} {stars}/5\n\n{self.user_message}\n\n**Buyer:** {self.author.mention} ({self.author.name})",
-            color=discord.Color.from_rgb(255, 215, 0)
-        )
+    async def rate(self, interaction: discord.Interaction, stars: int):
+        if interaction.user.id != self.auth.id:
+            return await interaction.response.send_message("❌ ليست لك!", ephemeral=True)
         
+        ch = bot.get_channel(VOUCH_CH)
+        embed = discord.Embed(title="Customer Rating", description=f"{'⭐'*stars}{'☆'*(5-stars)} {stars}/5\n\n{self.msg}\n\n**Buyer:** {self.auth.mention}", color=0xFFD700)
         embed.set_author(name="BSELL STORE", icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
-        embed.set_thumbnail(url=interaction.guild.icon.url if interaction.guild.icon else self.author.avatar.url)
-        embed.set_footer(text="BSELL STORE • Verified Purchase", icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
+        embed.set_footer(text="BSELL STORE • Verified Purchase")
         
-        await vouch_channel.send(embed=embed)
-        await interaction.response.edit_message(content=f"✅ تم إرسال تقييمك بنجاح في {vouch_channel.mention}!", view=None)
+        await ch.send(embed=embed)
+        await interaction.response.edit_message(content=f"✅ تم الإرسال في {ch.mention}!", view=None)
         self.stop()
 
-    @discord.ui.button(label="1 ⭐", style=discord.ButtonStyle.secondary, custom_id="star_1")
-    async def star_1(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.process_rating(interaction, 1)
+    @discord.ui.button(label="1 ⭐")
+    async def s1(self, ix, b): await self.rate(ix, 1)
+    @discord.ui.button(label="2 ⭐")
+    async def s2(self, ix, b): await self.rate(ix, 2)
+    @discord.ui.button(label="3 ⭐")
+    async def s3(self, ix, b): await self.rate(ix, 3)
+    @discord.ui.button(label="4 ⭐")
+    async def s4(self, ix, b): await self.rate(ix, 4)
+    @discord.ui.button(label="5 ⭐", style=discord.ButtonStyle.success)
+    async def s5(self, ix, b): await self.rate(ix, 5)
 
-    @discord.ui.button(label="2 ⭐", style=discord.ButtonStyle.secondary, custom_id="star_2")
-    async def star_2(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.process_rating(interaction, 2)
-
-    @discord.ui.button(label="3 ⭐", style=discord.ButtonStyle.secondary, custom_id="star_3")
-    async def star_3(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.process_rating(interaction, 3)
-
-    @discord.ui.button(label="4 ⭐", style=discord.ButtonStyle.secondary, custom_id="star_4")
-    async def star_4(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.process_rating(interaction, 4)
-
-    @discord.ui.button(label="5 ⭐", style=discord.ButtonStyle.success, custom_id="star_5")
-    async def star_5(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.process_rating(interaction, 5)
+@tasks.loop(seconds=10)
+async def keep_alive():
+    ch = bot.get_channel(SLEEP_CH)
+    if ch: await ch.send("🤖 البوت نشط...")
 
 @bot.event
 async def on_ready():
-    print(f"✅ البوت جاهز ويعمل بكامل ميزاته باسم: {bot.user}")
-    if not keep_alive_ping.is_running():
-        keep_alive_ping.start()
+    print(f"✅ جاهز: {bot.user}")
+    if not keep_alive.is_running(): keep_alive.start()
+
+@bot.event
+async def on_member_join(m):
+    ch = bot.get_channel(WELCOME_CH)
+    if ch: await ch.send(f"أهلاً بك {m.mention} نورت السيرفر! ✨")
+
+@bot.event
+async def on_message_delete(msg):
+    if msg.author.bot: return
+    ch = bot.get_channel(LOG_CH)
+    if ch:
+        emb = discord.Embed(title="🗑️ رسالة محذوفة", color=discord.Color.red())
+        emb.add_field(name="العضو:", value=msg.author.mention).add_field(name="الروم:", value=msg.channel.mention)
+        emb.add_field(name="المحتوى:", value=msg.content or "*صورة/ملف*", inline=False)
+        await ch.send(embed=emb)
+
+@bot.event
+async def on_raw_message_edit(p):
+    ch = bot.get_channel(LOG_CH)
+    if not ch or (p.data.get("author") and p.data["author"].get("bot")): return
+    old = p.cached_message.content if p.cached_message else "*رسالة قديمة*"
+    new = p.data.get("content", "*مرفقات*")
+    if old == new: return
+    emb = discord.Embed(title="📝 رسالة معدلة", color=discord.Color.orange())
+    emb.add_field(name="العضو:", value=f"<@{p.data['author']['id']}>").add_field(name="الروم:", value=ch.mention)
+    emb.add_field(name="القديم:", value=old, inline=False).add_field(name="الجديد:", value=new, inline=False)
+    await ch.send(embed=emb)
 
 @bot.command(name="vouch")
 async def vouch(ctx, *, message: str = None):
-    if "🟡" not in ctx.channel.name:
-        await ctx.send("❌ | لا يمكنك التقييم هنا! هذا الأمر متاح فقط داخل غرف الشراء المخصصة والمغلقة بـ 🟡.", delete_after=5)
-        await ctx.message.delete()
-        return
+    if "🟡" not in ctx.channel.name or not message:
+        return await ctx.send("❌ يرجى كتابة التقييم داخل روم 🟡.", delete_after=5)
+    await ctx.message.delete()
+    await ctx.send(f"📬 {ctx.author.mention} اختر النجوم:", view=RatingButtons(message, ctx.author))
 
-    if message is None or message.strip() == "":
-        await ctx.send("❌ | يرجى كتابة التقييم بعد الأمر. مثال: `!vouch متجر أسطوري وسريع`", delete_after=5)
-        await ctx.message.delete()
-        return
-
+async def change_name(ctx, name, msg):
+    if "ticket" not in ctx.channel.name.lower(): return
+    await ctx.channel.edit(name=name)
+    await ctx.send(msg)
     await ctx.message.delete()
 
-    view = RatingButtons(user_message=message, author=ctx.author)
-    await ctx.send(f"📬 {ctx.author.mention}، يرجى اختيار عدد النجوم لتقييمك أدناه لإرساله:", view=view)
+@bot.command(name="طلب")
+@commands.has_permissions(manage_channels=True)
+async def o(ctx): await change_name(ctx, "طلب-عميل-🔵", "🔵 تم تغيير الاسم لطلب عميل.")
+
+@bot.command(name="شكوة")
+@commands.has_permissions(manage_channels=True)
+async def c(ctx): await change_name(ctx, "شكوة-عميل-🔴", "🔴 تم تغيير الاسم لشكوى عميل.")
+
+@bot.command(name="تمارسال")
+@commands.has_permissions(manage_channels=True)
+async def s(ctx):
+    if "ticket" in ctx.channel.name or "طلب" in ctx.channel.name:
+        await ctx.channel.edit(name="طلب-عميل-🟢")
+        await ctx.send("🟢 تم الشحن والإرسال.")
+        await ctx.message.delete()
 
 @bot.event
-async def on_message(message):
-    if message.author.bot:
-        return
-    await bot.process_commands(message)
+async def on_message(m):
+    if not m.author.bot: await bot.process_commands(m)
 
 bot.run(os.getenv("DISCORD_TOKEN"))
