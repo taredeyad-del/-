@@ -41,7 +41,6 @@ async def keep_alive_ping():
     channel = bot.get_channel(ANTI_SLEEP_CHANNEL_ID)
     if channel:
         try:
-            # يرسل رسالة نشاط كل 10 ثوانٍ ويتركها لضمان بقائه أونلاين دائماً في Render
             await channel.send("🤖 البوت نشط حالياً والعمل مستمر...")
         except Exception:
             pass
@@ -80,25 +79,52 @@ async def on_message_delete(message):
         await log_channel.send(embed=embed)
 
 
-# ----------------- نظام سجل الرسائل المعدلة -----------------
+# ----------------- نظام سجل الرسائل المعدلة المتطور (Raw) -----------------
 @bot.event
-async def on_message_edit(before, after):
-    if before.author.bot or before.content == after.content:
+async def on_raw_message_edit(payload):
+    # جلب روم اللوج أولاً
+    log_channel = bot.get_channel(LOG_CHANNEL_ID)
+    if not log_channel:
         return
 
-    log_channel = bot.get_channel(LOG_CHANNEL_ID)
-    if log_channel:
-        embed = discord.Embed(
-            title="📝 رسالة معدلة",
-            color=discord.Color.orange(),
-            timestamp=after.edited_at if after.edited_at else after.created_at
-        )
-        embed.add_field(name="العضو:", value=f"{before.author.mention} ({before.author.name})", inline=True)
-        embed.add_field(name="الروم:", value=before.channel.mention, inline=True)
-        embed.add_field(name="النص القديم:", value=before.content if before.content else "*فارغ*", inline=False)
-        embed.add_field(name="النص الجديد:", value=after.content if after.content else "*فارغ*", inline=False)
-        
-        await log_channel.send(embed=embed)
+    # التحقق من البيانات الجديدة المستلمة من التعديل
+    data = payload.data
+    author_data = data.get("author")
+    
+    # تجنب تسجيل تعديلات البوتات نفسها
+    if author_data and author_data.get("bot"):
+        return
+
+    # جلب بيانات الروم الذي تم التعديل فيه
+    channel = bot.get_channel(payload.channel_id)
+    channel_mention = channel.mention if channel else f"روم غير معروف (ID: {payload.channel_id})"
+
+    # تحديد كاتب الرسالة
+    user_mention = f"<@{author_data['id']}>" if author_data else "مستخدم غير معروف"
+
+    # جلب النص الجديد بعد التعديل
+    new_content = data.get("content", "*لا يوجد نص (قد تكون مرفقات)*")
+
+    # محاولة جلب النص القديم المخزن مؤقتاً (إن وُجد)
+    if payload.cached_message:
+        old_content = payload.cached_message.content
+        # إذا لم يتغير النص الفعلي (تحديث تلقائي للروابط مثلاً)، نتجاهل التعديل
+        if old_content == new_content:
+            return
+    else:
+        old_content = "*الرسالة قديمة جداً ولم تكن مخزنة في الذاكرة المؤقتة للـ Bot*"
+
+    # إنشاء الإمبيد الاحترافي للرسائل المعدلة باللون البرتقالي
+    embed = discord.Embed(
+        title="📝 رسالة معدلة",
+        color=discord.Color.orange()
+    )
+    embed.add_field(name="العضو:", value=user_mention, inline=True)
+    embed.add_field(name="الروم:", value=channel_mention, inline=True)
+    embed.add_field(name="النص القديم:", value=old_content, inline=False)
+    embed.add_field(name="النص الجديد:", value=new_content, inline=False)
+    
+    await log_channel.send(embed=embed)
 
 
 # ----------------- نظام سجل تغيير الأسماء -----------------
