@@ -29,53 +29,94 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 # ✅ إيدي روم التقييمات الخاص بك
 VOUCH_CHANNEL_ID = 1511668692889370735  
 
+# قائمة الأزرار التفاعلية لاختيار عدد النجوم
+class RatingButtons(discord.ui.View):
+    def __init__(self, user_message, author):
+        super().__init__(timeout=60) # تختفي الأزرار بعد دقيقة إذا لم يتم الاختيار
+        self.user_message = user_message
+        self.author = author
+
+    async def process_rating(self, interaction: discord.Interaction, stars: int):
+        # التأكد من أن الذي يضغط على الزر هو نفس الشخص صاحب التقييم
+        if interaction.user.id != self.author.id:
+            await interaction.response.send_message("❌ | هذه الأزرار ليست لك!", ephemeral=True)
+            return
+
+        vouch_channel = bot.get_channel(VOUCH_CHANNEL_ID)
+        if not vouch_channel:
+            await interaction.response.send_message("❌ | لم يتم العثور على قناة التقييمات العامة.", ephemeral=True)
+            return
+
+        # إنشاء النجوم بناءً على اختيار العضو
+        stars_string = "⭐" * stars + "☆" * (5 - stars)
+
+        # بناء رسالة الإمبيد الاحترافية النهائية
+        embed = discord.Embed(
+            title="Customer Rating",
+            description=f"{stars_string} {stars}/5\n\n{self.user_message}\n\n*— Anonymous Customer*",
+            color=discord.Color.from_rgb(255, 215, 0)
+        )
+        
+        embed.set_author(name="bl4nk Market", icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
+        embed.set_thumbnail(url=interaction.guild.icon.url if interaction.guild.icon else self.author.avatar.url)
+        embed.set_footer(text="bl4nk Market • Verified Purchase", icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
+        
+        # إرسال التقييم النهائي للقناة العامة
+        await vouch_channel.send(embed=embed)
+        
+        # تحديث رسالة البوت وحذف الأزرار وتأكيد النجاح
+        await interaction.response.edit_message(content=f"✅ تم إرسال تقييمك بنجاح في {vouch_channel.mention}!", view=None)
+        self.stop()
+
+    # أزرار التقييم من 1 إلى 5
+    @discord.ui.button(label="1 ⭐", style=discord.ButtonStyle.secondary, custom_id="star_1")
+    async def star_1(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.process_rating(interaction, 1)
+
+    @discord.ui.button(label="2 ⭐", style=discord.ButtonStyle.secondary, custom_id="star_2")
+    async def star_2(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.process_rating(interaction, 2)
+
+    @discord.ui.button(label="3 ⭐", style=discord.ButtonStyle.secondary, custom_id="star_3")
+    async def star_3(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.process_rating(interaction, 3)
+
+    @discord.ui.button(label="4 ⭐", style=discord.ButtonStyle.secondary, custom_id="star_4")
+    async def star_4(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.process_rating(interaction, 4)
+
+    @discord.ui.button(label="5 ⭐", style=discord.ButtonStyle.success, custom_id="star_5")
+    async def star_5(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.process_rating(interaction, 5)
+
 @bot.event
 async def on_ready():
-    print(f"✅ بوت التقييمات الذكي جاهز ويعمل باسم: {bot.user}")
+    print(f"✅ بوت التقييمات التلقائي جاهز ويعمل باسم: {bot.user}")
 
-@bot.command(name="vouch")
-async def vouch(ctx, *, message: str = None):
-    # 1. التحقق من وجود الإيموجي الأصفر 🟡 في اسم الروم الحالي
-    if "🟡" not in ctx.channel.name:
-        await ctx.send("❌ | لا يمكنك التقييم هنا! هذا الأمر متاح فقط داخل غرف الشراء المخصصة والمغلقة بـ 🟡.", delete_after=5)
-        await ctx.message.delete()
+# الاستماع لأي رسالة يكتبها الأعضاء بدون الحاجة لأمر نصي
+@bot.event
+async def on_message(message):
+    # تجاهل رسائل البوتات لعدم حدوث تكرار
+    if message.author.bot:
         return
 
-    # 2. التأكد من أن العضو كتب نص التقييم
-    if message is None or message.strip() == "":
-        await ctx.send("❌ | يرجى كتابة التقييم بعد الأمر. مثال: `!vouch سريع ومضمون`", delete_after=5)
-        await ctx.message.delete()
-        return
+    # التحقق من وجود الإيموجي الأصفر 🟡 في اسم الروم الحالي
+    if "🟡" in message.channel.name:
+        # حفظ نص الرسالة ليكون هو التقييم
+        user_text = message.content
+        
+        # التأكد من أن الرسالة ليست فارغة
+        if user_text.strip() != "":
+            # حذف رسالة العضو فوراً لتنظيف الشات
+            await message.delete()
 
-    # 3. جلب قناة التقييمات العامة
-    vouch_channel = bot.get_channel(VOUCH_CHANNEL_ID)
-    if not vouch_channel:
-        await ctx.send("❌ | لم يتم العثور على قناة التقييمات العامة، يرجى التأكد من صلاحيات البوت لرؤية الروم.", delete_after=5)
-        return
+            # إرسال أزرار اختيار النجوم للعضو
+            view = RatingButtons(user_message=user_text, author=message.author)
+            await message.channel.send(f"📬 {message.author.mention}، يرجى اختيار عدد النجوم لتقييمك أدناه لإرساله:", view=view, delete_after=60)
+            return
 
-    # 4. بناء رسالة الإمبيد الاحترافية (تم تعديل النجوم إلى الأرقام 12345)
-    embed = discord.Embed(
-        title="Customer Rating",
-        description=f"12345 5/5\n\n{message}\n\n*— Anonymous Customer*",
-        color=discord.Color.from_rgb(255, 215, 0) # اللون الأصفر الجانبي المضيء
-    )
-    
-    embed.set_author(
-        name="bl4nk Market", 
-        icon_url=ctx.guild.icon.url if ctx.guild.icon else None
-    )
-    
-    embed.set_thumbnail(url=ctx.guild.icon.url if ctx.guild.icon else ctx.author.avatar.url)
-    
-    embed.set_footer(
-        text="bl4nk Market • Verified Purchase", 
-        icon_url=ctx.guild.icon.url if ctx.guild.icon else None
-    )
-    
-    # 5. إرسال التقييم وحذف الرسالة الأصلية لتنظيف الشات
-    await vouch_channel.send(embed=embed)
-    await ctx.send(f"✅ {ctx.author.mention} شكرًا لتقييمك! تم بنجاح نقل التقييم إلى {vouch_channel.mention}.", delete_after=5)
-    await ctx.message.delete()
+    # السماح للأوامر الأخرى بالعمل بشكل طبيعي في بقية السيرفر
+    await bot.process_commands(message)
 
 # تشغيل البوت
 bot.run(os.getenv("DISCORD_TOKEN"))
