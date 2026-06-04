@@ -28,10 +28,11 @@ intents.message_content = True
 intents.members = True  
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# ✅ إيديات الرومات الخاصة بسيرفرك
+# ✅ إيديات الرومات الخاصة بسيرفرك معدلة بالكامل وجاهزة
 WELCOME_CHANNEL_ID = 1511571690294083716      # روم الترحيب
 VOUCH_CHANNEL_ID = 1511668692889370735        # روم التقييمات
 ANTI_SLEEP_CHANNEL_ID = 1511557359800025088   # روم منع النوم المخصص (anti sleep bot)
+LOG_CHANNEL_ID = 1512027662665777152          # روم الرسائل المحذوفة المخصص
 
 
 # ----------------- نظام منع النوم التلقائي الذكي -----------------
@@ -40,7 +41,6 @@ async def keep_alive_ping():
     channel = bot.get_channel(ANTI_SLEEP_CHANNEL_ID)
     if channel:
         try:
-            # يرسل رسالة النشاط ويتركها في الروم بدون حذف لضمان بقائه مستيقظاً
             await channel.send("🤖 البوت نشط حالياً...")
         except Exception:
             pass
@@ -51,6 +51,32 @@ async def on_member_join(member):
     welcome_channel = bot.get_channel(WELCOME_CHANNEL_ID)
     if welcome_channel:
         await welcome_channel.send(f"أهلاً بك {member.mention} نورت السيرفر! ✨")
+
+
+# ----------------- نظام سجل الرسائل المحذوفة -----------------
+@bot.event
+async def on_message_delete(message):
+    if message.author.bot:
+        return
+
+    log_channel = bot.get_channel(LOG_CHANNEL_ID)
+    if log_channel:
+        content = message.content if message.content else "*الرسالة لا تحتوي على نص (قد تكون صورة أو إيموجي فقط)*"
+        
+        embed = discord.Embed(
+            title="🗑️ رسالة محذوفة جديدة",
+            color=discord.Color.red(),
+            timestamp=message.created_at
+        )
+        embed.add_field(name="الكاتب:", value=f"{message.author.mention} ({message.author.name})", inline=True)
+        embed.add_field(name="الروم:", value=message.channel.mention, inline=True)
+        embed.add_field(name="المحتوى المحذوف:", value=content, inline=False)
+        
+        if message.attachments:
+            links = "\n".join([att.url for att in message.attachments])
+            embed.add_field(name="المرفقات المحذوفة (صور/ملفات):", value=links, inline=False)
+            
+        await log_channel.send(embed=embed)
 
 
 # ----------------- كلاس الأزرار الخاص بالتقييمات -----------------
