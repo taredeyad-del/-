@@ -83,7 +83,8 @@ async def vouch(ctx, *, message: str = None):
     await ctx.send(f"📬 {ctx.author.mention} اختر النجوم:", view=RatingButtons(message, ctx.author))
 
 async def change_name(ctx, name, msg):
-    if "ticket" not in ctx.channel.name.lower(): return
+    if "ticket" not in ctx.channel.name.lower(): 
+        return await ctx.send("❌ هذا الأمر متاح فقط داخل غرف التذاكر (ticket).", delete_after=5)
     await ctx.channel.edit(name=name)
     await ctx.send(msg)
     await ctx.message.delete()
@@ -92,14 +93,16 @@ async def change_name(ctx, name, msg):
 @commands.has_permissions(manage_channels=True)
 async def o(ctx): await change_name(ctx, "طلب-عميل-🔵", "🔵 تم تغيير الاسم لطلب عميل.")
 
-@bot.command(name="شكوة")
+# تم إصلاح الخطأ هنا وتفعيل الأمرين معاً لضمان عدم حدوث مشاكل بالتسمية
+@bot.command(name="شكوة", aliases=["شكوه"])
 @commands.has_permissions(manage_channels=True)
 async def c(ctx): await change_name(ctx, "شكوة-عميل-🔴", "🔴 تم تغيير الاسم لشكوى عميل.")
 
 @bot.command(name="تمارسال")
 @commands.has_permissions(manage_channels=True)
 async def s(ctx):
-    if "ticket" in ctx.channel.name or "طلب" in ctx.channel.name:
+    channel_name = ctx.channel.name.lower()
+    if "ticket" in channel_name or "طلب" in channel_name:
         await ctx.channel.edit(name="طلب-عميل-🟢")
         await ctx.send("🟢 تم الشحن والإرسال.")
         await ctx.message.delete()
