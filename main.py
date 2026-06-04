@@ -29,10 +29,10 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 # ✅ إيدي روم التقييمات الخاص بك
 VOUCH_CHANNEL_ID = 1511668692889370735  
 
-# كلاس الأزرار المصلح بالكامل لحل مشكلة التفاعل المعلق
+# كلاس الأزرار المصلح بالكامل
 class RatingButtons(discord.ui.View):
     def __init__(self, user_message, author):
-        super().__init__(timeout=120) # وقت أطول للاختيار (دقيقتين)
+        super().__init__(timeout=120) 
         self.user_message = user_message
         self.author = author
 
@@ -49,10 +49,10 @@ class RatingButtons(discord.ui.View):
         # إنشاء شكل النجوم التعبيرية
         stars_string = "⭐" * stars + "☆" * (5 - stars)
 
-        # بناء رسالة الإمبيد الاحترافية النهائية (تم استبدال اسم المتجر بـ BSELL STORE)
+        # بناء رسالة الإمبيد الاحترافية النهائية (تمت إضافة يوزر المقيم هنا)
         embed = discord.Embed(
             title="Customer Rating",
-            description=f"{stars_string} {stars}/5\n\n{self.user_message}\n\n*— Anonymous Customer*",
+            description=f"{stars_string} {stars}/5\n\n{self.user_message}\n\n**Buyer:** {self.author.mention} ({self.author.name})",
             color=discord.Color.from_rgb(255, 215, 0)
         )
         
@@ -95,26 +95,21 @@ async def on_ready():
 # تعديل أمر التقييم ليقبل أي نص مكتوب بدون قيود
 @bot.command(name="vouch")
 async def vouch(ctx, *, message: str = None):
-    # 1. التحقق من وجود الإيموجي الأصفر 🟡 في اسم الروم الحالي
     if "🟡" not in ctx.channel.name:
         await ctx.send("❌ | لا يمكنك التقييم هنا! هذا الأمر متاح فقط داخل غرف الشراء المخصصة والمغلقة بـ 🟡.", delete_after=5)
         await ctx.message.delete()
         return
 
-    # 2. التأكد من أن العضو كتب نص التقييم
     if message is None or message.strip() == "":
         await ctx.send("❌ | يرجى كتابة التقييم بعد الأمر. مثال: `!vouch متجر أسطوري وسريع`", delete_after=5)
         await ctx.message.delete()
         return
 
-    # 3. حذف رسالة العضو الأصلية فوراً لتنظيف الشات
     await ctx.message.delete()
 
-    # 4. إرسال أزرار النجوم التفاعلية المصلحة
     view = RatingButtons(user_message=message, author=ctx.author)
     await ctx.send(f"📬 {ctx.author.mention}، يرجى اختيار عدد النجوم لتقييمك أدناه لإرساله:", view=view)
 
-# دالة أساسية تضمن معالجة الأوامر النصية بشكل سليم دون تداخل
 @bot.event
 async def on_message(message):
     if message.author.bot:
