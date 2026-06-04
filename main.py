@@ -28,11 +28,11 @@ intents.message_content = True
 intents.members = True  
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# ✅ إيديات الرومات الخاصة بسيرفرك معدلة بالكامل وجاهزة
+# ✅ إيديات الرومات الخاصة بسيرفرك معدلة وجاهزة
 WELCOME_CHANNEL_ID = 1511571690294083716      # روم الترحيب
 VOUCH_CHANNEL_ID = 1511668692889370735        # روم التقييمات
 ANTI_SLEEP_CHANNEL_ID = 1511557359800025088   # روم منع النوم المخصص (anti sleep bot)
-LOG_CHANNEL_ID = 1512027662665777152          # روم الرسائل المحذوفة المخصص
+LOG_CHANNEL_ID = 1512027662665777152          # روم السجلات واللوج الموحد
 
 
 # ----------------- نظام منع النوم التلقائي الذكي -----------------
@@ -64,18 +64,62 @@ async def on_message_delete(message):
         content = message.content if message.content else "*الرسالة لا تحتوي على نص (قد تكون صورة أو إيموجي فقط)*"
         
         embed = discord.Embed(
-            title="🗑️ رسالة محذوفة جديدة",
+            title="🗑️ رسالة محذوفة",
             color=discord.Color.red(),
             timestamp=message.created_at
         )
-        embed.add_field(name="الكاتب:", value=f"{message.author.mention} ({message.author.name})", inline=True)
+        embed.add_field(name="العضو:", value=f"{message.author.mention} ({message.author.name})", inline=True)
         embed.add_field(name="الروم:", value=message.channel.mention, inline=True)
-        embed.add_field(name="المحتوى المحذوف:", value=content, inline=False)
+        embed.add_field(name="المحتوى:", value=content, inline=False)
         
         if message.attachments:
             links = "\n".join([att.url for att in message.attachments])
-            embed.add_field(name="المرفقات المحذوفة (صور/ملفات):", value=links, inline=False)
+            embed.add_field(name="المرفقات المحذوفة:", value=links, inline=False)
             
+        await log_channel.send(embed=embed)
+
+
+# ----------------- نظام سجل الرسائل المعدلة -----------------
+@bot.event
+async def on_message_edit(before, after):
+    # تجاهل البوتات وتجاهل التعديلات التلقائية إذا لم يتغير النص (مثل قراءة روابط)
+    if before.author.bot or before.content == after.content:
+        return
+
+    log_channel = bot.get_channel(LOG_CHANNEL_ID)
+    if log_channel:
+        embed = discord.Embed(
+            title="📝 رسالة معدلة",
+            color=discord.Color.orange(),
+            timestamp=after.edited_at if after.edited_at else after.created_at
+        )
+        embed.add_field(name="العضو:", value=f"{before.author.mention} ({before.author.name})", inline=True)
+        embed.add_field(name="الروم:", value=before.channel.mention, inline=True)
+        embed.add_field(name="النص القديم:", value=before.content if before.content else "*فارغ*", inline=False)
+        embed.add_field(name="النص الجديد:", value=after.content if after.content else "*فارغ*", inline=False)
+        
+        await log_channel.send(embed=embed)
+
+
+# ----------------- نظام سجل تغيير الأسماء -----------------
+@bot.event
+async def on_member_update(before, after):
+    log_channel = bot.get_channel(LOG_CHANNEL_ID)
+    if not log_channel:
+        return
+
+    # 1. التحقق من تغيير اللقب داخل السيرفر (Server Nickname)
+    if before.nick != after.nick:
+        old_nick = before.nick if before.nick else before.name
+        new_nick = after.nick if after.nick else after.name
+        
+        embed = discord.Embed(
+            title="👤 تغيير اللقب بالسيرفر",
+            color=discord.Color.blue()
+        )
+        embed.add_field(name="العضو:", value=after.mention, inline=False)
+        embed.add_field(name="اللقب القديم:", value=old_nick, inline=True)
+        embed.add_field(name="اللقب الجديد:", value=new_nick, inline=True)
         await log_channel.send(embed=embed)
 
 
