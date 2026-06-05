@@ -43,10 +43,21 @@ async def keep_alive():
     ch = bot.get_channel(SLEEP_CH)
     if ch: await ch.send("🤖 البوت نشط...")
 
+import asyncio
+
 @bot.event
 async def on_ready():
     print(f"✅ جاهز: {bot.user}")
-    if not keep_alive.is_running(): keep_alive.start()
+
+    if not keep_alive.is_running():
+        keep_alive.start()
+
+    async def shutdown_after_day():
+        await asyncio.sleep(86400)  # 24 ساعة
+        print("⏰ انتهى اليوم")
+        await bot.close()
+
+    asyncio.create_task(shutdown_after_day())
 
 @bot.event
 async def on_member_join(m):
