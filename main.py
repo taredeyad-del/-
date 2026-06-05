@@ -32,6 +32,14 @@ LOG_CH = 1512027662665777152
 bot_deleted_messages = set()
 
 
+async def delete_command(ctx):
+    try:
+        bot_deleted_messages.add(ctx.message.id)
+        await ctx.message.delete()
+    except:
+        pass
+
+
 @bot.event
 async def on_ready():
     print(f"✅ البوت اشتغل: {bot.user}")
@@ -79,40 +87,34 @@ async def on_message_delete(message):
 @commands.has_permissions(manage_messages=True)
 async def حذف(ctx, amount: int = 1):
     deleted = await ctx.channel.purge(limit=amount + 1)
-
     for msg in deleted:
         bot_deleted_messages.add(msg.id)
-
-    msg = await ctx.send(f"تم حذف {amount} رسالة")
-    bot_deleted_messages.add(msg.id)
-    await msg.delete(delay=3)
 
 
 @bot.command()
 async def طلب(ctx):
+    await delete_command(ctx)
     await ctx.channel.edit(name="🟢・طلب")
-    await ctx.send("تم تحويل التذكرة إلى طلب")
 
 
 @bot.command(name="شكوى")
 async def شكوى(ctx):
+    await delete_command(ctx)
     await ctx.channel.edit(name="🔴・شكوى")
-    await ctx.send("تم تحويل التذكرة إلى شكوى")
 
 
 @bot.command(name="شكوة")
 async def شكوة(ctx):
+    await delete_command(ctx)
     await ctx.channel.edit(name="🔴・شكوى")
-    await ctx.send("تم تحويل التذكرة إلى شكوى")
 
 
 @bot.command()
 async def نوم(ctx):
+    await delete_command(ctx)
     channel = bot.get_channel(SLEEP_CH)
     if channel:
         await channel.send(f"{ctx.author.mention} راح ينام، تصبحون على خير")
-    else:
-        await ctx.send("قناة النوم غير موجودة")
 
 
 class RatingButtons(discord.ui.View):
@@ -159,6 +161,8 @@ class RatingButtons(discord.ui.View):
 
 @bot.command()
 async def تقييم(ctx, member: discord.Member = None):
+    await delete_command(ctx)
+
     member = member or ctx.author
 
     embed = discord.Embed(
@@ -172,11 +176,14 @@ async def تقييم(ctx, member: discord.Member = None):
 
 @bot.command()
 async def سلام(ctx):
+    await delete_command(ctx)
     await ctx.send(f"هلا {ctx.author.mention}")
 
 
 @bot.command()
 async def اوامر(ctx):
+    await delete_command(ctx)
+
     embed = discord.Embed(title="أوامر البوت", color=discord.Color.blue())
     embed.add_field(name="!طلب", value="يغير اسم الروم إلى 🟢・طلب", inline=False)
     embed.add_field(name="!شكوى", value="يغير اسم الروم إلى 🔴・شكوى", inline=False)
@@ -185,6 +192,7 @@ async def اوامر(ctx):
     embed.add_field(name="!نوم", value="يرسل رسالة في قناة النوم", inline=False)
     embed.add_field(name="!حذف رقم", value="يحذف رسائل بدون ما تطلع في اللوق", inline=False)
     embed.add_field(name="!سلام", value="يرد عليك", inline=False)
+
     await ctx.send(embed=embed)
 
 
@@ -194,7 +202,10 @@ async def on_command_error(ctx, error):
         return
 
     if isinstance(error, commands.MissingPermissions):
-        await ctx.send("ما عندك صلاحية تستخدم هذا الأمر")
+        try:
+            await ctx.message.delete()
+        except:
+            pass
         return
 
     raise error
