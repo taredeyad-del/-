@@ -1,5 +1,5 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from flask import Flask
 from threading import Thread
 import os
@@ -43,6 +43,16 @@ async def delete_command(ctx):
 @bot.event
 async def on_ready():
     print(f"✅ البوت اشتغل: {bot.user}")
+
+    if not bot_status_log.is_running():
+        bot_status_log.start()
+
+
+@tasks.loop(seconds=10)
+async def bot_status_log():
+    channel = bot.get_channel(LOG_CH)
+    if channel:
+        await channel.send("🤖 البوت نشط...")
 
 
 @bot.event
@@ -190,7 +200,7 @@ async def اوامر(ctx):
     embed.add_field(name="!شكوة", value="نفس أمر الشكوى", inline=False)
     embed.add_field(name="!تقييم @user", value="يفتح أزرار تقييم", inline=False)
     embed.add_field(name="!نوم", value="يرسل رسالة في قناة النوم", inline=False)
-    embed.add_field(name="!حذف رقم", value="يحذف رسائل بدون ما تطلع في اللوق", inline=False)
+    embed.add_field(name="!حذف رقم", value="يحذف رسائل بدون لوق", inline=False)
     embed.add_field(name="!سلام", value="يرد عليك", inline=False)
 
     await ctx.send(embed=embed)
