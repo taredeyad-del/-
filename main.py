@@ -1,6 +1,22 @@
 import discord
 from discord.ext import commands
+from flask import Flask
+from threading import Thread
 import os
+
+app = Flask("")
+
+@app.route("/")
+def home():
+    return "Bot is alive"
+
+def run_web():
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
+
+def keep_alive():
+    Thread(target=run_web).start()
+
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -18,7 +34,7 @@ bot_deleted_messages = set()
 
 @bot.event
 async def on_ready():
-    print(f"Logged in as {bot.user}")
+    print(f"✅ البوت اشتغل: {bot.user}")
 
 
 @bot.event
@@ -48,10 +64,7 @@ async def on_message_delete(message):
 
     log = bot.get_channel(LOG_CH)
     if log:
-        embed = discord.Embed(
-            title="Message Deleted",
-            color=discord.Color.red()
-        )
+        embed = discord.Embed(title="رسالة محذوفة", color=discord.Color.red())
         embed.add_field(name="الكاتب", value=message.author.mention, inline=False)
         embed.add_field(name="القناة", value=message.channel.mention, inline=False)
         embed.add_field(
@@ -76,6 +89,27 @@ async def حذف(ctx, amount: int = 1):
 
 
 @bot.command()
+async def طلب(ctx):
+    new_name = f"طلب-{ctx.author.name}"
+    await ctx.channel.edit(name=new_name)
+    await ctx.send(f"تم تغيير اسم الروم إلى: `{new_name}`")
+
+
+@bot.command(name="شكوى")
+async def شكوى(ctx):
+    new_name = f"شكوى-{ctx.author.name}"
+    await ctx.channel.edit(name=new_name)
+    await ctx.send(f"تم تغيير اسم الروم إلى: `{new_name}`")
+
+
+@bot.command(name="شكوة")
+async def شكوة(ctx):
+    new_name = f"شكوى-{ctx.author.name}"
+    await ctx.channel.edit(name=new_name)
+    await ctx.send(f"تم تغيير اسم الروم إلى: `{new_name}`")
+
+
+@bot.command()
 async def نوم(ctx):
     channel = bot.get_channel(SLEEP_CH)
     if channel:
@@ -88,9 +122,6 @@ class RatingButtons(discord.ui.View):
     def __init__(self, author):
         super().__init__(timeout=120)
         self.author = author
-
-    async def interaction_check(self, interaction: discord.Interaction):
-        return True
 
     @discord.ui.button(label="⭐", style=discord.ButtonStyle.gray)
     async def one_star(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -126,10 +157,7 @@ class RatingButtons(discord.ui.View):
         if vouch:
             await vouch.send(embed=embed)
 
-        await interaction.response.send_message(
-            "تم إرسال تقييمك بنجاح",
-            ephemeral=True
-        )
+        await interaction.response.send_message("تم إرسال تقييمك بنجاح", ephemeral=True)
 
 
 @bot.command()
@@ -152,10 +180,10 @@ async def سلام(ctx):
 
 @bot.command()
 async def اوامر(ctx):
-    embed = discord.Embed(
-        title="أوامر البوت",
-        color=discord.Color.blue()
-    )
+    embed = discord.Embed(title="أوامر البوت", color=discord.Color.blue())
+    embed.add_field(name="!طلب", value="يغير اسم الروم إلى طلب-اسمك", inline=False)
+    embed.add_field(name="!شكوى", value="يغير اسم الروم إلى شكوى-اسمك", inline=False)
+    embed.add_field(name="!شكوة", value="نفس أمر الشكوى لو كتبتها بدون همزة", inline=False)
     embed.add_field(name="!تقييم @user", value="يفتح أزرار تقييم", inline=False)
     embed.add_field(name="!نوم", value="يرسل رسالة في قناة النوم", inline=False)
     embed.add_field(name="!حذف رقم", value="يحذف رسائل بدون ما تطلع في اللوق", inline=False)
@@ -164,4 +192,17 @@ async def اوامر(ctx):
     await ctx.send(embed=embed)
 
 
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.CommandNotFound):
+        return
+
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.send("ما عندك صلاحية تستخدم هذا الأمر")
+        return
+
+    raise error
+
+
+keep_alive()
 bot.run(os.getenv("DISCORD_TOKEN"))
