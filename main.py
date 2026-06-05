@@ -90,23 +90,20 @@ async def حذف(ctx, amount: int = 1):
 
 @bot.command()
 async def طلب(ctx):
-    new_name = f"طلب-{ctx.author.name}"
-    await ctx.channel.edit(name=new_name)
-    await ctx.send(f"تم تغيير اسم الروم إلى: `{new_name}`")
+    await ctx.channel.edit(name="🟢・طلب")
+    await ctx.send("تم تحويل التذكرة إلى طلب")
 
 
 @bot.command(name="شكوى")
 async def شكوى(ctx):
-    new_name = f"شكوى-{ctx.author.name}"
-    await ctx.channel.edit(name=new_name)
-    await ctx.send(f"تم تغيير اسم الروم إلى: `{new_name}`")
+    await ctx.channel.edit(name="🔴・شكوى")
+    await ctx.send("تم تحويل التذكرة إلى شكوى")
 
 
 @bot.command(name="شكوة")
 async def شكوة(ctx):
-    new_name = f"شكوى-{ctx.author.name}"
-    await ctx.channel.edit(name=new_name)
-    await ctx.send(f"تم تغيير اسم الروم إلى: `{new_name}`")
+    await ctx.channel.edit(name="🔴・شكوى")
+    await ctx.send("تم تحويل التذكرة إلى شكوى")
 
 
 @bot.command()
@@ -181,14 +178,13 @@ async def سلام(ctx):
 @bot.command()
 async def اوامر(ctx):
     embed = discord.Embed(title="أوامر البوت", color=discord.Color.blue())
-    embed.add_field(name="!طلب", value="يغير اسم الروم إلى طلب-اسمك", inline=False)
-    embed.add_field(name="!شكوى", value="يغير اسم الروم إلى شكوى-اسمك", inline=False)
-    embed.add_field(name="!شكوة", value="نفس أمر الشكوى لو كتبتها بدون همزة", inline=False)
+    embed.add_field(name="!طلب", value="يغير اسم الروم إلى 🟢・طلب", inline=False)
+    embed.add_field(name="!شكوى", value="يغير اسم الروم إلى 🔴・شكوى", inline=False)
+    embed.add_field(name="!شكوة", value="نفس أمر الشكوى", inline=False)
     embed.add_field(name="!تقييم @user", value="يفتح أزرار تقييم", inline=False)
     embed.add_field(name="!نوم", value="يرسل رسالة في قناة النوم", inline=False)
     embed.add_field(name="!حذف رقم", value="يحذف رسائل بدون ما تطلع في اللوق", inline=False)
     embed.add_field(name="!سلام", value="يرد عليك", inline=False)
-
     await ctx.send(embed=embed)
 
 
