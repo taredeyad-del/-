@@ -19,7 +19,7 @@ intents.message_content = True
 intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# الإيديات المسموح لها
+# الإيديات المسموح لها (الاونر + الكو اونر + البوت)
 AUTHORIZED_IDS = [1511553830838468628, 1511553933053661224, 1511675475825787010]
 
 def is_authorized(ctx):
@@ -30,13 +30,10 @@ def is_authorized(ctx):
 @bot.command(name="ارسالبياناتطلب")
 @commands.check(is_authorized)
 async def archive_ticket(ctx):
-    # شرط وجود الدائرة الخضراء
-    if "🟢" not in ctx.channel.name:
-        return await ctx.send("❌ لا يمكن أرشفة التيكت إلا بعد إرساله (يجب وجود 🟢 في اسم القناة).")
-    
+    # تم إزالة شرط الاسم ليعمل الأمر في أي قناة
     ticket_owner = next((m for m in ctx.channel.members if not m.bot), None)
     if not ticket_owner:
-        return await ctx.send("❌ لم أجد صاحب التيكت!")
+        return await ctx.send("❌ لم أجد صاحب التيكت في القناة!")
     
     await ctx.send("⏳ جاري الأرشفة...")
     messages = [msg async for msg in ctx.channel.history(limit=None, oldest_first=True)]
@@ -45,13 +42,14 @@ async def archive_ticket(ctx):
     file = io.BytesIO(transcript.encode('utf-8'))
     try:
         await ticket_owner.send(f"📬 ملف محادثة التيكت:", file=discord.File(file, filename=f"ticket_{ctx.channel.name}.txt"))
-        await ctx.send("✅ تم الإرسال لصاحب التيكت في الخاص.")
+        await ctx.send("✅ تم إرسال الأرشيف لصاحب التيكت في الخاص.")
     except:
         await ctx.send("❌ الخاص مغلق، تعذر إرسال الملف.")
 
 @bot.command(name="حذفروم")
 @commands.check(is_authorized)
 async def delete_channel(ctx):
+    # تم إزالة شرط الاسم ليعمل الأمر في أي قناة
     await ctx.send("⚠️ سيتم حذف الروم في 3 ثوانٍ...")
     await asyncio.sleep(3)
     await ctx.channel.delete()
@@ -59,17 +57,17 @@ async def delete_channel(ctx):
 @bot.command(name="طلب")
 @commands.check(is_authorized)
 async def o(ctx): 
-    if "ticket" in ctx.channel.name.lower(): await ctx.channel.edit(name="طلب-عميل-🔵")
+    await ctx.channel.edit(name="طلب-عميل-🔵")
 
 @bot.command(name="تمارسال")
 @commands.check(is_authorized)
 async def s(ctx):
-    if "ticket" in ctx.channel.name.lower(): await ctx.channel.edit(name="طلب-عميل-🟢")
+    await ctx.channel.edit(name="طلب-عميل-🟢")
 
 @bot.command(name="شكوة", aliases=["شكوه"])
 @commands.check(is_authorized)
 async def c(ctx):
-    if "ticket" in ctx.channel.name.lower(): await ctx.channel.edit(name="شكوة-عميل-🔴")
+    await ctx.channel.edit(name="شكوة-عميل-🔴")
 
 # --- 4. معالج الأخطاء الصامت ---
 @bot.event
