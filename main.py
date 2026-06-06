@@ -4,7 +4,7 @@ from flask import Flask
 from threading import Thread
 import os
 
-# --- إعداد الويب ---
+# --- إعداد الويب 24/7 ---
 app = Flask("")
 @app.route("/")
 def home(): return "Bot is Alive"
@@ -15,52 +15,52 @@ Thread(target=run_web).start()
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-VOUCH_CH = 1511668692889370735
-LOG_CH = 1512027662665777152
-bot_deleted_messages = set()
+VOUCH_CH = 1511668692889370735 # قناة التقييمات
+LOG_CH = 1512027662665777152   # قناة اللوق
 
-# --- 1. أمر الـ Vouch الاحترافي ---
-@bot.command(name="vouch")
-async def vouch_command(ctx):
-    await ctx.send("✅ **تم رصد التقييم! شكراً لثقتكم بنا.**")
-
-# --- 2. نظام التقييم بالأزرار ---
+# --- نظام أزرار التقييم (النجوم الخمسة) ---
 class RatingButtons(discord.ui.View):
-    def __init__(self, author):
+    def __init__(self, member):
         super().__init__(timeout=120)
-        self.author = author
+        self.member = member
 
-    async def send_rating(self, interaction, stars):
-        vouch = bot.get_channel(VOUCH_CH)
-        embed = discord.Embed(title="تقييم جديد", description=f"التقييم: {'⭐' * stars}", color=discord.Color.gold())
-        embed.add_field(name="من", value=interaction.user.mention, inline=False)
-        embed.add_field(name="لـ", value=self.author.mention, inline=False)
-        if vouch: await vouch.send(embed=embed)
-        await interaction.response.send_message(f"تم إرسال تقييمك بـ {stars} نجوم", ephemeral=True)
+    async def send_vouch(self, interaction, stars):
+        vouch_channel = bot.get_channel(VOUCH_CH)
+        if vouch_channel:
+            embed = discord.Embed(title="تقييم جديد ✅", color=discord.Color.green())
+            embed.add_field(name="التقييم", value="⭐" * stars, inline=False)
+            embed.add_field(name="العميل", value=interaction.user.mention, inline=False)
+            embed.add_field(name="التقييم لـ", value=self.member.mention, inline=False)
+            await vouch_channel.send(embed=embed)
+        await interaction.response.send_message("تم إرسال تقييمك بنجاح للروم! شكراً لك.", ephemeral=True)
 
-    @discord.ui.button(label="⭐⭐⭐⭐⭐", style=discord.ButtonStyle.green)
-    async def star5(self, i, b): await self.send_rating(i, 5)
+    @discord.ui.button(label="⭐", style=discord.ButtonStyle.secondary)
+    async def s1(self, i, b): await self.send_vouch(i, 1)
+    @discord.ui.button(label="⭐⭐", style=discord.ButtonStyle.secondary)
+    async def s2(self, i, b): await self.send_vouch(i, 2)
+    @discord.ui.button(label="⭐⭐⭐", style=discord.ButtonStyle.secondary)
+    async def s3(self, i, b): await self.send_vouch(i, 3)
+    @discord.ui.button(label="⭐⭐⭐⭐", style=discord.ButtonStyle.secondary)
+    async def s4(self, i, b): await self.send_vouch(i, 4)
+    @discord.ui.button(label="⭐⭐⭐⭐⭐", style=discord.ButtonStyle.success)
+    async def s5(self, i, b): await self.send_vouch(i, 5)
 
+# --- أوامر البوت ---
 @bot.command()
 async def تقييم(ctx, member: discord.Member = None):
     member = member or ctx.author
-    embed = discord.Embed(title="قيّم العضو", description=f"اختر تقييمك لـ {member.mention}", color=discord.Color.pink())
+    embed = discord.Embed(title="اختر عدد النجوم للتقييم", description=f"قيّم العضو {member.mention}", color=discord.Color.gold())
     await ctx.send(embed=embed, view=RatingButtons(member))
 
-# --- 3. أوامر التيكتات ---
 @bot.command()
-async def طلب(ctx): 
-    await ctx.channel.edit(name="🟢・طلب")
+async def طلب(ctx): await ctx.channel.edit(name="🟢・طلب")
 
 @bot.command()
-async def شكوى(ctx): 
-    await ctx.channel.edit(name="🔴・شكوى")
+async def شكوى(ctx): await ctx.channel.edit(name="🔴・شكوى")
 
 @bot.command()
-async def حذفروم(ctx):
-    await ctx.channel.delete()
+async def حذفروم(ctx): await ctx.channel.delete()
 
-# --- 4. اللوق والتشغيل ---
 @bot.event
 async def on_message_delete(message):
     if message.author.bot: return
@@ -72,6 +72,6 @@ async def on_message_delete(message):
         await log.send(embed=embed)
 
 @bot.event
-async def on_ready(): print(f"✅ البوت جاهز: {bot.user}")
+async def on_ready(): print(f"✅ البوت متصل: {bot.user}")
 
 bot.run(os.getenv("DISCORD_TOKEN"))
