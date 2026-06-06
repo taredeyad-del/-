@@ -45,13 +45,12 @@ async def on_message_delete(message):
         embed.add_field(name="المحتوى", value=message.content or "لا يوجد نص", inline=False)
         await log_channel.send(embed=embed)
 
-# --- نظام نبض البوت (Heartbeat) ---
+# --- نظام نبض البوت ---
 @tasks.loop(seconds=10)
 async def periodic_message():
     channel = bot.get_channel(LOOP_CH)
     if channel:
-        # رسالة تأكيد أن البوت يعمل
-        await channel.send("✅ **System Status: Online** | البوت يعمل الآن بشكل سليم.")
+        await channel.send("✅ **System Status: Online**")
 
 @bot.event
 async def on_ready():
@@ -59,7 +58,7 @@ async def on_ready():
     if not periodic_message.is_running():
         periodic_message.start()
 
-# --- كلاس الأزرار ---
+# --- كلاس التقييم ---
 class RatingButtons(discord.ui.View):
     def __init__(self, review_text):
         super().__init__(timeout=120)
@@ -90,23 +89,26 @@ async def vouch(ctx, *, review_text: str = "بدون تعليق"):
 @bot.command()
 async def طلب(ctx): 
     await delete_ctx(ctx)
-    await ctx.channel.edit(name="طلب • 🔵")
+    try: await ctx.channel.edit(name="طلب-🔵")
+    except Exception as e: print(f"خطأ: {e}")
 
 @bot.command()
 async def تماستلامطلب(ctx): 
     await delete_ctx(ctx)
-    await ctx.channel.edit(name="طلب • 🟢")
+    try: await ctx.channel.edit(name="طلب-🟢")
+    except Exception as e: print(f"خطأ: {e}")
 
 @bot.command()
 async def تمارسالطلب(ctx): 
     await delete_ctx(ctx)
-    await ctx.channel.edit(name="طلب • 🟡")
+    try: await ctx.channel.edit(name="طلب-🟡")
+    except Exception as e: print(f"خطأ: {e}")
 
 @bot.command()
 async def حذفروم(ctx):
     await delete_ctx(ctx)
     await ctx.channel.delete()
 
-# --- تشغيل البوت ---
+# --- التشغيل ---
 keep_alive()
 bot.run(os.getenv("DISCORD_TOKEN"))
