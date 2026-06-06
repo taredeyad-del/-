@@ -14,44 +14,19 @@ def keep_alive():
     t.start()
 
 # --- إعداد البوت ---
-intents = discord.Intents.all()
+intents = discord.Intents.default()
+intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# --- إعدادات القنوات والرتب ---
+# --- إعدادات القنوات ---
 VOUCH_CH = 1511668692889370735
-LOG_CH = 1512027662665777152
 LOOP_CH = 1511557359800025088
-WELCOME_CH = 1511557359800025088 # قناة الترحيب
-AUTO_ROLE_ID = 1511674988602855566
 
 async def delete_ctx(ctx):
     try: await ctx.message.delete()
     except: pass
 
-# --- الأحداث (Events) ---
-@bot.event
-async def on_member_join(member):
-    # إعطاء رتبة
-    role = member.guild.get_role(AUTO_ROLE_ID)
-    if role: await member.add_roles(role)
-    
-    # رسالة ترحيب احترافية
-    welcome_channel = bot.get_channel(WELCOME_CH)
-    if welcome_channel:
-        embed = discord.Embed(title="✨ عضو جديد!", description=f"أهلاً بك {member.mention} في سيرفرنا! نورت السيرفر! 🚀", color=discord.Color.blue())
-        embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
-        await welcome_channel.send(embed=embed)
-
-@bot.event
-async def on_message_delete(message):
-    if message.author.bot: return
-    log_channel = bot.get_channel(LOG_CH)
-    if log_channel:
-        embed = discord.Embed(title="رسالة محذوفة", color=discord.Color.red())
-        embed.add_field(name="الكاتب", value=message.author.mention, inline=False)
-        embed.add_field(name="المحتوى", value=message.content or "لا يوجد نص", inline=False)
-        await log_channel.send(embed=embed)
-
+# --- نظام نبض البوت ---
 @tasks.loop(seconds=60)
 async def periodic_message():
     channel = bot.get_channel(LOOP_CH)
