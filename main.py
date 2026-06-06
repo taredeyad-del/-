@@ -2,17 +2,27 @@ import discord
 from discord.ext import commands, tasks
 import os
 
+# إعداد الصلاحيات (مهم جداً لتفعيل Member Join)
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# القنوات (تأكد من تحديث الـ IDs إذا لزم الأمر)
+# --- إعدادات القنوات والرتب ---
 VOUCH_CH = 1511668692889370735
 LOG_CH = 1512027662665777152
 LOOP_CH = 1511557359800025088
+AUTO_ROLE_ID = 1511674988602855566
 
 async def delete_ctx(ctx):
     try: await ctx.message.delete()
     except: pass
+
+# --- حدث دخول عضو جديد ---
+@bot.event
+async def on_member_join(member):
+    role = member.guild.get_role(AUTO_ROLE_ID)
+    if role:
+        try: await member.add_roles(role)
+        except Exception as e: print(f"خطأ في إعطاء الرتبة: {e}")
 
 # --- نظام اللوق للرسائل المحذوفة ---
 @bot.event
