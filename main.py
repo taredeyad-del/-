@@ -46,7 +46,7 @@ async def on_message_delete(message):
         await log_channel.send(embed=embed)
 
 # --- نظام نبض البوت ---
-@tasks.loop(seconds=10)
+@tasks.loop(seconds=60)
 async def periodic_message():
     channel = bot.get_channel(LOOP_CH)
     if channel:
@@ -58,7 +58,7 @@ async def on_ready():
     if not periodic_message.is_running():
         periodic_message.start()
 
-# --- كلاس الأزرار (نجوم دائمة) ---
+# --- كلاس الأزرار (تعديل الرسالة عند الضغط) ---
 class RatingButtons(discord.ui.View):
     def __init__(self, review_text):
         super().__init__(timeout=None)
@@ -72,7 +72,10 @@ class RatingButtons(discord.ui.View):
             embed.add_field(name="التعليق", value=self.review_text, inline=False)
             embed.add_field(name="العميل", value=interaction.user.mention, inline=False)
             await vouch_channel.send(embed=embed)
-        await interaction.response.send_message(f"✅ تم تسجيل تقييمك بـ {stars} نجوم!", ephemeral=True)
+        
+        # تعديل الرسالة بدل حذفها (حل مضمون)
+        new_embed = discord.Embed(title="شكراً لتقييمك! ✅", description="تم إرسال تقييمك بنجاح.", color=discord.Color.green())
+        await interaction.response.edit_message(embed=new_embed, view=None)
 
     @discord.ui.button(label="⭐", style=discord.ButtonStyle.secondary)
     async def s1(self, i, b): await self.send_vouch(i, 1)
