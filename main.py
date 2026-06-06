@@ -4,64 +4,26 @@ from flask import Flask
 from threading import Thread
 import os
 
-# 1. إعداد الويب 24/7
+# --- إعداد الويب ---
 app = Flask("")
 @app.route("/")
-def home(): return "Bot is alive"
+def home(): return "Bot is Alive"
 def run_web(): app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
-def keep_alive(): Thread(target=run_web).start()
+Thread(target=run_web).start()
 
-# 2. إعداد البوت
-intents = discord.Intents.default()
-intents.message_content = True
-intents.members = True
+# --- إعداد البوت ---
+intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# القنوات والإيديات
+# القنوات (تأكد من مطابقة هذه الإيديات لما هو موجود في سيرفرك)
 WELCOME_CH = 1511571690294083716
 VOUCH_CH = 1511668692889370735
 SLEEP_CH = 1511557359800025088
 LOG_CH = 1512027662665777152
+
 bot_deleted_messages = set()
 
-# وظائف مساعدة
-async def delete_command(ctx):
-    try:
-        bot_deleted_messages.add(ctx.message.id)
-        await ctx.message.delete()
-    except: pass
-
-# 3. أحداث البوت (Logs)
-@bot.event
-async def on_ready():
-    print(f"✅ البوت اشتغل: {bot.user}")
-    if not bot_status_log.is_running(): bot_status_log.start()
-
-@tasks.loop(seconds=10)
-async def bot_status_log():
-    channel = bot.get_channel(LOG_CH)
-    if channel: await channel.send("🤖 البوت نشط...")
-
-@bot.event
-async def on_member_join(member):
-    channel = bot.get_channel(WELCOME_CH)
-    if channel:
-        embed = discord.Embed(title="Welcome!", description=f"هلا والله {member.mention} نورت السيرفر", color=discord.Color.pink())
-        embed.set_thumbnail(url=member.display_avatar.url)
-        await channel.send(embed=embed)
-
-@bot.event
-async def on_message_delete(message):
-    if message.author == bot.user or message.id in bot_deleted_messages or message.author.bot: return
-    log = bot.get_channel(LOG_CH)
-    if log:
-        embed = discord.Embed(title="رسالة محذوفة", color=discord.Color.red())
-        embed.add_field(name="الكاتب", value=message.author.mention, inline=False)
-        embed.add_field(name="القناة", value=message.channel.mention, inline=False)
-        embed.add_field(name="الرسالة", value=message.content if message.content else "لا يوجد نص", inline=False)
-        await log.send(embed=embed)
-
-# 4. نظام التقييم (Buttons)
+# --- نظام التقييم (vouch) بالأزرار ---
 class RatingButtons(discord.ui.View):
     def __init__(self, author):
         super().__init__(timeout=120)
@@ -76,63 +38,44 @@ class RatingButtons(discord.ui.View):
         await interaction.response.send_message("تم إرسال تقييمك بنجاح", ephemeral=True)
 
     @discord.ui.button(label="⭐", style=discord.ButtonStyle.gray)
-    async def one_star(self, i: discord.Interaction, b: discord.ui.Button): await self.send_rating(i, 1)
+    async def one_star(self, i, b): await self.send_rating(i, 1)
     @discord.ui.button(label="⭐⭐", style=discord.ButtonStyle.gray)
-    async def two_star(self, i: discord.Interaction, b: discord.ui.Button): await self.send_rating(i, 2)
+    async def two_star(self, i, b): await self.send_rating(i, 2)
     @discord.ui.button(label="⭐⭐⭐", style=discord.ButtonStyle.gray)
-    async def three_star(self, i: discord.Interaction, b: discord.ui.Button): await self.send_rating(i, 3)
+    async def three_star(self, i, b): await self.send_rating(i, 3)
     @discord.ui.button(label="⭐⭐⭐⭐", style=discord.ButtonStyle.gray)
-    async def four_star(self, i: discord.Interaction, b: discord.ui.Button): await self.send_rating(i, 4)
+    async def four_star(self, i, b): await self.send_rating(i, 4)
     @discord.ui.button(label="⭐⭐⭐⭐⭐", style=discord.ButtonStyle.green)
-    async def five_star(self, i: discord.Interaction, b: discord.ui.Button): await self.send_rating(i, 5)
+    async def five_star(self, i, b): await self.send_rating(i, 5)
 
-# 5. الأوامر
-@bot.command()
-@commands.has_permissions(manage_messages=True)
-async def حذف(ctx, amount: int = 1):
-    deleted = await ctx.channel.purge(limit=amount + 1)
-    for msg in deleted: bot_deleted_messages.add(msg.id)
-
-@bot.command()
-async def طلب(ctx): await delete_command(ctx); await ctx.channel.edit(name="🟢・طلب")
-@bot.command(name="شكوى")
-async def شكوى(ctx): await delete_command(ctx); await ctx.channel.edit(name="🔴・شكوى")
-@bot.command(name="شكوة")
-async def شكوة(ctx): await delete_command(ctx); await ctx.channel.edit(name="🔴・شكوى")
-
-@bot.command()
-async def نوم(ctx):
-    await delete_command(ctx)
-    channel = bot.get_channel(SLEEP_CH)
-    if channel: await channel.send(f"{ctx.author.mention} راح ينام، تصبحون على خير")
-
+# --- أوامر البوت ---
 @bot.command()
 async def تقييم(ctx, member: discord.Member = None):
-    await delete_command(ctx)
     member = member or ctx.author
     embed = discord.Embed(title="قيّم العضو", description=f"اختر تقييمك لـ {member.mention}", color=discord.Color.pink())
     await ctx.send(embed=embed, view=RatingButtons(member))
 
 @bot.command()
-async def سلام(ctx): await delete_command(ctx); await ctx.send(f"هلا {ctx.author.mention}")
+async def طلب(ctx): await ctx.channel.edit(name="🟢・طلب")
+
+@bot.command(name="شكوى")
+async def شكوى(ctx): await ctx.channel.edit(name="🔴・شكوى")
 
 @bot.command()
-async def اوامر(ctx):
-    await delete_command(ctx)
-    embed = discord.Embed(title="أوامر البوت", color=discord.Color.blue())
-    embed.add_field(name="!طلب", value="يغير اسم الروم إلى 🟢・طلب", inline=False)
-    embed.add_field(name="!شكوى", value="يغير اسم الروم إلى 🔴・شكوى", inline=False)
-    embed.add_field(name="!تقييم @user", value="يفتح أزرار تقييم", inline=False)
-    await ctx.send(embed=embed)
+async def حذف(ctx, amount: int = 1):
+    await ctx.channel.purge(limit=amount + 1)
 
 @bot.event
-async def on_command_error(ctx, error):
-    if isinstance(error, commands.CommandNotFound): return
-    if isinstance(error, commands.MissingPermissions): 
-        try: await ctx.message.delete()
-        except: pass
-        return
-    raise error
+async def on_message_delete(message):
+    if message.author.bot: return
+    log = bot.get_channel(LOG_CH)
+    if log:
+        embed = discord.Embed(title="رسالة محذوفة", color=discord.Color.red())
+        embed.add_field(name="الكاتب", value=message.author.mention, inline=False)
+        embed.add_field(name="الرسالة", value=message.content, inline=False)
+        await log.send(embed=embed)
 
-keep_alive()
+@bot.event
+async def on_ready(): print(f"✅ البوت جاهز: {bot.user}")
+
 bot.run(os.getenv("DISCORD_TOKEN"))
