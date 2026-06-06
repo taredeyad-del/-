@@ -11,32 +11,36 @@ const client = new Client({
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
 
-    // تعريف جميع الأوامر والحالات المرتبطة بها
-    const statusCommands = {
+    // خريطة للأوامر والإيموجيات
+    const commands = {
         '!شكوة': '🔴',
         '!طلب': '🔵',
         '!تماستلامطلب': '🟢',
         '!تمارسالطلب': '🟡'
     };
 
-    // التحقق إذا كانت الرسالة أحد الأوامر المذكورة
-    if (statusCommands[message.content]) {
+    const emoji = commands[message.content];
+
+    // إذا كان الأمر موجوداً في القائمة
+    if (emoji) {
         const channel = message.channel;
-        const newEmoji = statusCommands[message.content];
-        
-        // استبدال أي إيموجي حالة سابق موجود في الاسم بالإيموجي الجديد
-        // يقوم بمسح 🔴, 🔵, 🟢, أو 🟡 ويضع الجديد
-        let newName = channel.name.replace(/🔴|🔵|🟢|🟡/g, '');
-        
-        // إضافة الإيموجي الجديد (مع التأكد من التنسيق)
-        newName = `${newName.replace(/-+$/, '')}-${newEmoji}`;
+        let currentName = channel.name;
+
+        // 1. إزالة أي إيموجي قديم من القائمة (🔴, 🔵, 🟢, 🟡)
+        let cleanedName = currentName.replace(/🔴|🔵|🟢|🟡/g, '').replace(/-+/g, '-').replace(/-$/, '');
+
+        // 2. دمج الاسم الجديد مع الإيموجي
+        let newName = `${cleanedName}-${emoji}`;
+
+        // 3. منع تكرار الإيموجي إذا كان موجوداً بالفعل
+        newName = newName.replace(/-🔴/g, '🔴').replace(/-🔵/g, '🔵').replace(/-🟢/g, '🟢').replace(/-🟡/g, '🟡');
 
         try {
             await channel.setName(newName);
-            message.reply(`تم تحديث حالة الروم إلى ${newEmoji}`);
+            message.reply(`تم تحديث حالة الروم إلى ${emoji}`);
         } catch (error) {
-            console.error(error);
-            message.reply('عذراً، لا أملك صلاحية تغيير اسم الروم.');
+            console.error('Error changing channel name:', error);
+            message.reply('حدث خطأ: تأكد من أن البوت لديه صلاحية "إدارة القنوات" (Manage Channels).');
         }
     }
 });
