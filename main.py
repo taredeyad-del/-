@@ -22,32 +22,38 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 # الإيديات المسموح لها
 AUTHORIZED_IDS = [1511553830838468628, 1511553933053661224, 1511675475825787010]
 
-# --- 3. نظام التحقق ---
 def is_authorized(ctx):
     return ctx.author.id in AUTHORIZED_IDS
 
-# --- 4. الأوامر ---
+# --- 3. الأوامر ---
 
 @bot.command(name="ارسالبياناتطلب")
 @commands.check(is_authorized)
 async def archive_ticket(ctx):
-    ticket_owner = next((m for m in ctx.channel.members if not m.bot), None)
-    if not ticket_owner: return await ctx.send("❌ لم أجد صاحب التيكت!")
+    # شرط وجود الدائرة الخضراء
+    if "🟢" not in ctx.channel.name:
+        return await ctx.send("❌ لا يمكن أرشفة التيكت إلا بعد إرساله (يجب وجود 🟢 في اسم القناة).")
     
+    ticket_owner = next((m for m in ctx.channel.members if not m.bot), None)
+    if not ticket_owner:
+        return await ctx.send("❌ لم أجد صاحب التيكت!")
+    
+    await ctx.send("⏳ جاري الأرشفة...")
     messages = [msg async for msg in ctx.channel.history(limit=None, oldest_first=True)]
     transcript = "\n".join([f"{msg.author.name}: {msg.content}" for msg in messages])
     
     file = io.BytesIO(transcript.encode('utf-8'))
     try:
         await ticket_owner.send(f"📬 ملف محادثة التيكت:", file=discord.File(file, filename=f"ticket_{ctx.channel.name}.txt"))
-        await ctx.send("✅ تم الإرسال!")
-    except: await ctx.send("❌ الخاص مغلق.")
+        await ctx.send("✅ تم الإرسال لصاحب التيكت في الخاص.")
+    except:
+        await ctx.send("❌ الخاص مغلق، تعذر إرسال الملف.")
 
 @bot.command(name="حذفروم")
 @commands.check(is_authorized)
 async def delete_channel(ctx):
-    await ctx.send("⚠️ سيتم حذف الروم...")
-    await asyncio.sleep(2)
+    await ctx.send("⚠️ سيتم حذف الروم في 3 ثوانٍ...")
+    await asyncio.sleep(3)
     await ctx.channel.delete()
 
 @bot.command(name="طلب")
@@ -65,16 +71,14 @@ async def s(ctx):
 async def c(ctx):
     if "ticket" in ctx.channel.name.lower(): await ctx.channel.edit(name="شكوة-عميل-🔴")
 
-# --- 5. معالج الأخطاء الصامت (يمنع الرسائل الحمراء في الـ Logs) ---
+# --- 4. معالج الأخطاء الصامت ---
 @bot.event
 async def on_command_error(ctx, error):
-    if isinstance(error, commands.CommandNotFound):
-        return  # يتجاهل أي أمر غير موجود ولن يظهر خطأ
-    if isinstance(error, commands.CheckFailure):
-        return  # يتجاهل خطأ عدم الصلاحية
+    if isinstance(error, commands.CommandNotFound): return
+    if isinstance(error, commands.CheckFailure): return
     raise error
 
-# --- 6. التشغيل ---
+# --- 5. التشغيل ---
 @bot.event
 async def on_ready():
     print(f"✅ جاهز: {bot.user}")
