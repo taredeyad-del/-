@@ -4,25 +4,29 @@ from flask import Flask
 from threading import Thread
 import os
 
-# --- إعداد الويب 24/7 ---
 app = Flask("")
 @app.route("/")
 def home(): return "Bot is Alive"
 def run_web(): app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
 Thread(target=run_web).start()
 
-# --- إعداد البوت ---
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 VOUCH_CH = 1511668692889370735
 LOG_CH = 1512027662665777152
 
-# --- 1. نظام التقييم بالأزرار (5 نجوم) ---
+# دالة حذف الرسالة (يجب أن يكون للبوت صلاحية Manage Messages)
+async def try_delete(ctx):
+    try:
+        await ctx.message.delete()
+    except:
+        pass
+
+# نظام الأزرار (النجمة الواحدة حتى الخمسة)
 class RatingButtons(discord.ui.View):
-    def __init__(self, member):
+    def __init__(self):
         super().__init__(timeout=120)
-        self.member = member
 
     async def send_vouch(self, interaction, stars):
         vouch_channel = bot.get_channel(VOUCH_CH)
@@ -30,9 +34,8 @@ class RatingButtons(discord.ui.View):
             embed = discord.Embed(title="تقييم جديد ✅", color=discord.Color.gold())
             embed.add_field(name="التقييم", value="⭐" * stars, inline=False)
             embed.add_field(name="العميل", value=interaction.user.mention, inline=False)
-            embed.add_field(name="التقييم لـ", value=self.member.mention, inline=False)
             await vouch_channel.send(embed=embed)
-        await interaction.response.send_message(f"✅ تم إرسال تقييمك ({stars} نجوم) للروم بنجاح.", ephemeral=True)
+        await interaction.response.send_message(f"✅ تم إرسال تقييمك ({stars} نجوم).", ephemeral=True)
 
     @discord.ui.button(label="⭐", style=discord.ButtonStyle.secondary)
     async def s1(self, i, b): await self.send_vouch(i, 1)
@@ -45,34 +48,27 @@ class RatingButtons(discord.ui.View):
     @discord.ui.button(label="⭐⭐⭐⭐⭐", style=discord.ButtonStyle.success)
     async def s5(self, i, b): await self.send_vouch(i, 5)
 
-# --- 2. الأوامر ---
+# الأمر الوحيد للتقييم
 @bot.command()
 async def vouch(ctx):
-    await ctx.send("✅ **تم رصد التقييم! شكراً لثقتكم بنا.**")
+    await try_delete(ctx)
+    embed = discord.Embed(title="قيّم خدماتنا", description="اختر عدد النجوم:", color=discord.Color.pink())
+    await ctx.send(embed=embed, view=RatingButtons())
 
 @bot.command()
-async def تقييم(ctx, member: discord.Member = None):
-    member = member or ctx.author
-    embed = discord.Embed(title="اختر عدد النجوم للتقييم", description=f"قيّم العضو {member.mention}", color=discord.Color.pink())
-    await ctx.send(embed=embed, view=RatingButtons(member))
+async def طلب(ctx): 
+    await try_delete(ctx)
+    await ctx.channel.edit(name="🟢・طلب")
 
 @bot.command()
-async def طلب(ctx): await ctx.channel.edit(name="🟢・طلب")
-@bot.command()
-async def شكوى(ctx): await ctx.channel.edit(name="🔴・شكوى")
-@bot.command()
-async def حذفروم(ctx): await ctx.channel.delete()
+async def شكوى(ctx): 
+    await try_delete(ctx)
+    await ctx.channel.edit(name="🔴・شكوى")
 
-# --- 3. اللوق ---
-@bot.event
-async def on_message_delete(message):
-    if message.author.bot: return
-    log = bot.get_channel(LOG_CH)
-    if log:
-        embed = discord.Embed(title="رسالة محذوفة", color=discord.Color.red())
-        embed.add_field(name="الكاتب", value=message.author.mention, inline=False)
-        embed.add_field(name="الرسالة", value=message.content or "لا يوجد نص", inline=False)
-        await log.send(embed=embed)
+@bot.command()
+async def حذفروم(ctx):
+    await try_delete(ctx)
+    await ctx.channel.delete()
 
 @bot.event
 async def on_ready(): print(f"✅ البوت متصل: {bot.user}")
