@@ -5,17 +5,16 @@ import os
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# القنوات
+# القنوات (تأكد من تحديث الـ IDs إذا لزم الأمر)
 VOUCH_CH = 1511668692889370735
 LOG_CH = 1512027662665777152
 LOOP_CH = 1511557359800025088
 
-# دالة الحذف الموحدة
 async def delete_ctx(ctx):
     try: await ctx.message.delete()
     except: pass
 
-# --- نظام اللوڤ للرسائل المحذوفة ---
+# --- نظام اللوق للرسائل المحذوفة ---
 @bot.event
 async def on_message_delete(message):
     if message.author.bot: return
@@ -26,7 +25,7 @@ async def on_message_delete(message):
         embed.add_field(name="المحتوى", value=message.content or "لا يوجد نص", inline=False)
         await log_channel.send(embed=embed)
 
-# --- نظام الرسالة الدورية (كل 10 ثوانٍ) ---
+# --- نظام الرسالة الدورية ---
 @tasks.loop(seconds=10)
 async def periodic_message():
     channel = bot.get_channel(LOOP_CH)
@@ -78,12 +77,17 @@ async def vouch(ctx, *, review_text: str = "بدون تعليق"):
 @bot.command()
 async def طلب(ctx): 
     await delete_ctx(ctx)
-    await ctx.channel.edit(name="🟢・طلب")
+    await ctx.channel.edit(name="طلب • 🔵")
 
 @bot.command()
-async def شكوى(ctx): 
+async def تم_استلام_الطلب(ctx): 
     await delete_ctx(ctx)
-    await ctx.channel.edit(name="🔴・شكوى")
+    await ctx.channel.edit(name="طلب • 🟢")
+
+@bot.command()
+async def تم_إرسال_الطلب(ctx): 
+    await delete_ctx(ctx)
+    await ctx.channel.edit(name="طلب • 🟡")
 
 @bot.command()
 async def حذفروم(ctx):
