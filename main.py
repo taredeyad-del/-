@@ -4,7 +4,7 @@ import os
 from flask import Flask
 from threading import Thread
 
-# --- إعداد نظام الإبقاء على البوت نشطاً (Flask) ---
+# --- إعداد نظام الإبقاء على البوت نشطاً ---
 app = Flask('')
 @app.route('/')
 def home(): return "البوت يعمل الآن!"
@@ -45,11 +45,13 @@ async def on_message_delete(message):
         embed.add_field(name="المحتوى", value=message.content or "لا يوجد نص", inline=False)
         await log_channel.send(embed=embed)
 
+# --- نظام نبض البوت (Heartbeat) ---
 @tasks.loop(seconds=10)
 async def periodic_message():
     channel = bot.get_channel(LOOP_CH)
     if channel:
-        await channel.send("💡 **تذكير:** لا تنسَ تقييم خدماتنا باستخدام أمر `!vouch`!")
+        # رسالة تأكيد أن البوت يعمل
+        await channel.send("✅ **System Status: Online** | البوت يعمل الآن بشكل سليم.")
 
 @bot.event
 async def on_ready():
@@ -71,18 +73,10 @@ class RatingButtons(discord.ui.View):
             embed.add_field(name="التعليق", value=self.review_text, inline=False)
             embed.add_field(name="العميل", value=interaction.user.mention, inline=False)
             await vouch_channel.send(embed=embed)
-        await interaction.response.send_message(f"✅ تم رصد التقييم! شكراً لثقتكم بنا.", ephemeral=True)
+        await interaction.response.send_message(f"✅ تم رصد التقييم!", ephemeral=True)
         try: await interaction.message.delete()
         except: pass
 
-    @discord.ui.button(label="⭐", style=discord.ButtonStyle.secondary)
-    async def s1(self, i, b): await self.send_vouch(i, 1)
-    @discord.ui.button(label="⭐⭐", style=discord.ButtonStyle.secondary)
-    async def s2(self, i, b): await self.send_vouch(i, 2)
-    @discord.ui.button(label="⭐⭐⭐", style=discord.ButtonStyle.secondary)
-    async def s3(self, i, b): await self.send_vouch(i, 3)
-    @discord.ui.button(label="⭐⭐⭐⭐", style=discord.ButtonStyle.secondary)
-    async def s4(self, i, b): await self.send_vouch(i, 4)
     @discord.ui.button(label="⭐⭐⭐⭐⭐", style=discord.ButtonStyle.success)
     async def s5(self, i, b): await self.send_vouch(i, 5)
 
@@ -90,7 +84,7 @@ class RatingButtons(discord.ui.View):
 @bot.command()
 async def vouch(ctx, *, review_text: str = "بدون تعليق"):
     await delete_ctx(ctx)
-    embed = discord.Embed(title="قيّم خدماتنا", description=f"التقييم: {review_text}\n\nاختر عدد النجوم:", color=discord.Color.pink())
+    embed = discord.Embed(title="قيّم خدماتنا", description=f"التعليق: {review_text}\nاختر عدد النجوم:", color=discord.Color.pink())
     await ctx.send(embed=embed, view=RatingButtons(review_text))
 
 @bot.command()
@@ -99,12 +93,12 @@ async def طلب(ctx):
     await ctx.channel.edit(name="طلب • 🔵")
 
 @bot.command()
-async def تم_استلام_الطلب(ctx): 
+async def تماستلامطلب(ctx): 
     await delete_ctx(ctx)
     await ctx.channel.edit(name="طلب • 🟢")
 
 @bot.command()
-async def تم_إرسال_الطلب(ctx): 
+async def تمارسالطلب(ctx): 
     await delete_ctx(ctx)
     await ctx.channel.edit(name="طلب • 🟡")
 
@@ -113,6 +107,6 @@ async def حذفروم(ctx):
     await delete_ctx(ctx)
     await ctx.channel.delete()
 
-# --- التشغيل ---
+# --- تشغيل البوت ---
 keep_alive()
 bot.run(os.getenv("DISCORD_TOKEN"))
