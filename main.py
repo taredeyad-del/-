@@ -4,120 +4,54 @@ from flask import Flask
 from threading import Thread
 import os
 
-# إعدادات النسخة
-BOT_VERSION = "1.1.0-beta"
-
+# --- جزء تشغيل الويب (ضروري لـ Render) ---
 app = Flask("")
-
 @app.route("/")
-def home():
-    return "Bot is alive - Beta Version"
+def home(): return "Bot is Online!"
+def run_web(): app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+Thread(target=run_web).start()
 
-def run_web():
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host="0.0.0.0", port=port)
-
-def keep_alive():
-    Thread(target=run_web).start()
-
+# --- كود البوت الخاص بك ---
 intents = discord.Intents.default()
-intents.message_content = True
-intents.members = True
-
+intents.message_content, intents.members = True, True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+# (ضع الإيديات الخاصة بك هنا)
 WELCOME_CH = 1511571690294083716
 VOUCH_CH = 1511668692889370735
 SLEEP_CH = 1511557359800025088
 LOG_CH = 1512027662665777152
 
-bot_deleted_messages = set()
+class RatingButtons(discord.ui.View):
+    def __init__(self, msg, auth):
+        super().__init__(timeout=120)
+        self.msg, self.auth = msg, auth
 
-# --- معالجة الأوامر المباشرة ---
-@bot.event
-async def on_message(message):
-    if message.author.bot:
-        return
+    async def rate(self, interaction: discord.Interaction, stars: int):
+        if interaction.user.id != self.auth.id:
+            return await interaction.response.send_message("❌ ليست لك!", ephemeral=True)
+        ch = bot.get_channel(VOUCH_CH)
+        embed = discord.Embed(title="Customer Rating", description=f"{'⭐'*stars}{'☆'*(5-stars)} {stars}/5\n\n{self.msg}\n\n**Buyer:** {self.auth.mention}", color=0xFFD700)
+        await ch.send(embed=embed)
+        await interaction.response.edit_message(content=f"✅ تم الإرسال!", view=None)
+        self.stop()
 
-    content = message.content.strip()
+    @discord.ui.button(label="5 ⭐", style=discord.ButtonStyle.success)
+    async def s5(self, ix, b): await self.rate(ix, 5)
+    # يمكنك إضافة بقية الأزرار (1-4) هنا بنفس الطريقة
 
-    if content == "طلب":
-        await message.delete()
-        await message.channel.edit(name="🟢・طلب")
-        return
+@tasks.loop(minutes=5) # تم التغيير لـ 5 دقائق لتجنب السبام
+async def keep_alive():
+    ch = bot.get_channel(SLEEP_CH)
+    if ch: 
+        try: await ch.send("🤖 البوت نشط...")
+        except: pass
 
-    if content in ["شكوى", "شكوة"]:
-        await message.delete()
-        await message.channel.edit(name="🔴・شكوى")
-        return
-
-    if content == "نوم":
-        await message.delete()
-        channel = bot.get_channel(SLEEP_CH)
-        if channel:
-            await channel.send(f"{message.author.mention} راح ينام، تصبحون على خير")
-        return
-
-    if content == "سلام":
-        await message.delete()
-        await message.channel.send(f"هلا {message.author.mention}")
-        return
-
-    # هذا السطر مهم جداً لمعالجة الأوامر التي تبدأ بـ ! (مثل !حذف)
-    await bot.process_commands(message)
-
-# --- أوامر الـ ! ---
-@bot.command()
-@commands.has_permissions(manage_messages=True)
-async def حذف(ctx, amount: int = 1):
-    deleted = await ctx.channel.purge(limit=amount + 1)
-    for msg in deleted:
-        bot_deleted_messages.add(msg.id)
-
-@bot.command()
-async def اوامر(ctx):
-    await ctx.message.delete()
-    embed = discord.Embed(title=f"أوامر البوت {BOT_VERSION}", color=discord.Color.blue())
-    embed.add_field(name="طلب", value="يغير اسم الروم إلى 🟢・طلب", inline=False)
-    embed.add_field(name="شكوى / شكوة", value="يغير اسم الروم إلى 🔴・شكوى", inline=False)
-    embed.add_field(name="سلام", value="يرد عليك بالسلام", inline=False)
-    embed.add_field(name="!حذف [رقم]", value="حذف الرسائل (للمشرفين)", inline=False)
-    await ctx.send(embed=embed)
-
-# --- أحداث البوت ---
 @bot.event
 async def on_ready():
-    print(f"✅ البوت اشتغل: {bot.user} | الإصدار: {BOT_VERSION}")
-    if not bot_status_log.is_running():
-        bot_status_log.start()
+    print(f"✅ جاهز: {bot.user}")
+    keep_alive.start()
 
-@tasks.loop(seconds=300)
-async def bot_status_log():
-    channel = bot.get_channel(LOG_CH)
-    if channel:
-        await channel.send(f"🤖 البوت نشط ({BOT_VERSION})")
+# ... (ضع بقية أحداثك (on_message_delete, on_raw_message_edit, الخ) هنا) ...
 
-@bot.event
-async def on_message_delete(message):
-    if message.author == bot.user or message.author.bot:
-        return
-    if message.id in bot_deleted_messages:
-        bot_deleted_messages.discard(message.id)
-        return
-    
-    log = bot.get_channel(LOG_CH)
-    if log:
-        embed = discord.Embed(title="رسالة محذوفة", color=discord.Color.red())
-        embed.add_field(name="الكاتب", value=message.author.mention, inline=False)
-        embed.add_field(name="الرسالة", value=message.content or "لا يوجد نص", inline=False)
-        await log.send(embed=embed)
-
-@bot.event
-async def on_member_join(member):
-    channel = bot.get_channel(WELCOME_CH)
-    if channel:
-        await channel.send(f"هلا والله {member.mention} نورت السيرفر!")
-
-# تشغيل البوت
-keep_alive()
 bot.run(os.getenv("DISCORD_TOKEN"))
