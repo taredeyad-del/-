@@ -1,101 +1,63 @@
-import discord
-from discord.ext import commands, tasks
-import os
-from flask import Flask
-from threading import Thread
+const { Client, GatewayIntentBits } = require('discord.js');
+const client = new Client({ 
+    intents: [
+        GatewayIntentBits.Guilds, 
+        GatewayIntentBits.GuildMessages, 
+        GatewayIntentBits.MessageContent
+    ] 
+});
 
-# --- إعداد نظام الإبقاء على البوت نشطاً ---
-app = Flask('')
-@app.route('/')
-def home(): return "البوت يعمل الآن!"
-def run_flask(): app.run(host='0.0.0.0', port=8080)
-def keep_alive():
-    t = Thread(target=run_flask)
-    t.start()
+client.on('ready', () => {
+    console.log(`تم تسجيل الدخول بنجاح باسم: ${client.user.tag}`);
+});
 
-# --- إعداد البوت ---
-intents = discord.Intents.default()
-intents.message_content = True
-bot = commands.Bot(command_prefix="!", intents=intents)
+client.on('messageCreate', async message => {
+    if (message.author.bot) return;
 
-# --- إعدادات القنوات ---
-VOUCH_CH = 1511668692889370735
-LOOP_CH = 1511557359800025088
+    // --- 1. نظام الشكوى (يُنشئ روم جديد باللون الأحمر) ---
+    if (message.content.startsWith('!شكوة')) {
+        const complaintContent = message.content.replace('!شكوة', '').trim();
+        if (!complaintContent) return message.reply('يرجى كتابة نص الشكوى بعد الأمر.');
 
-async def delete_ctx(ctx):
-    try: await ctx.message.delete()
-    except: pass
+        try {
+            const channel = await message.guild.channels.create({
+                name: `شكوى-🔴-${message.author.username}`,
+                type: 0 // نوع الروم كتابي
+            });
+            await channel.send(`**مقدم الشكوى:** ${message.author}\n**الشكوى:** ${complaintContent}`);
+            message.reply(`تم فتح روم الشكوى الخاص بك: ${channel}`);
+        } catch (error) {
+            console.error(error);
+            message.reply('حدث خطأ أثناء إنشاء روم الشكوى، تأكد من صلاحيات البوت (MANAGE_CHANNELS).');
+        }
+        return;
+    }
 
-# --- نظام نبض البوت ---
-@tasks.loop(seconds=60)
-async def periodic_message():
-    channel = bot.get_channel(LOOP_CH)
-    if channel: await channel.send("✅ **System Status: Online**")
+    // --- 2. نظام تغيير الحالة للأوامر (يعمل داخل الرومات) ---
+    // تعريف الأوامر والإيموجي المقابل لها
+    const statusCommands = {
+        '!طلب': '🔵',
+        '!تماستلامطلب': '🟢',
+        '!تمارسالطلب': '🟡'
+    };
 
-@bot.event
-async def on_ready():
-    print(f"✅ البوت متصل: {bot.user}")
-    if not periodic_message.is_running(): periodic_message.start()
-
-# --- كلاس التقييم (تعديل الرسالة) ---
-class RatingButtons(discord.ui.View):
-    def __init__(self, review_text):
-        super().__init__(timeout=None)
-        self.review_text = review_text
-
-    async def send_vouch(self, interaction, stars):
-        vouch_channel = bot.get_channel(VOUCH_CH)
-        if vouch_channel:
-            embed = discord.Embed(title="تقييم جديد ✅", color=discord.Color.gold())
-            embed.add_field(name="التقييم", value="⭐" * stars, inline=False)
-            embed.add_field(name="التعليق", value=self.review_text, inline=False)
-            embed.add_field(name="العميل", value=interaction.user.mention, inline=False)
-            await vouch_channel.send(embed=embed)
+    if (statusCommands[message.content]) {
+        const channel = message.channel;
+        const newEmoji = statusCommands[message.content];
         
-        new_embed = discord.Embed(title="شكراً لتقييمك! ✅", description="تم إرسال تقييمك بنجاح.", color=discord.Color.green())
-        await interaction.response.edit_message(embed=new_embed, view=None)
+        // استبدال الإيموجي القديم (مهما كان) بالإيموجي الجديد
+        const currentName = channel.name;
+        const newName = currentName.replace(/🔴|🔵|🟢|🟡/g, newEmoji);
+        
+        try {
+            await channel.setName(newName);
+            message.reply(`تم تحديث حالة الروم إلى ${newEmoji}`);
+        } catch (error) {
+            console.error(error);
+            message.reply('عذراً، لا أملك صلاحية تغيير اسم الروم.');
+        }
+    }
+});
 
-    @discord.ui.button(label="⭐", style=discord.ButtonStyle.secondary)
-    async def s1(self, i, b): await self.send_vouch(i, 1)
-    @discord.ui.button(label="⭐⭐", style=discord.ButtonStyle.secondary)
-    async def s2(self, i, b): await self.send_vouch(i, 2)
-    @discord.ui.button(label="⭐⭐⭐", style=discord.ButtonStyle.secondary)
-    async def s3(self, i, b): await self.send_vouch(i, 3)
-    @discord.ui.button(label="⭐⭐⭐⭐", style=discord.ButtonStyle.secondary)
-    async def s4(self, i, b): await self.send_vouch(i, 4)
-    @discord.ui.button(label="⭐⭐⭐⭐⭐", style=discord.ButtonStyle.success)
-    async def s5(self, i, b): await self.send_vouch(i, 5)
-
-# --- الأوامر ---
-@bot.command()
-async def vouch(ctx, *, review_text: str = "بدون تعليق"):
-    await delete_ctx(ctx)
-    embed = discord.Embed(title="قيّم خدماتنا", description=f"التعليق: {review_text}\nاختر عدد النجوم:", color=discord.Color.pink())
-    await ctx.send(embed=embed, view=RatingButtons(review_text))
-
-@bot.command()
-async def طلب(ctx): 
-    await delete_ctx(ctx)
-    try: await ctx.channel.edit(name="طلب-🔵")
-    except: pass
-
-@bot.command()
-async def تماستلامطلب(ctx): 
-    await delete_ctx(ctx)
-    try: await ctx.channel.edit(name="طلب-🟢")
-    except: pass
-
-@bot.command()
-async def تمارسالطلب(ctx): 
-    await delete_ctx(ctx)
-    try: await ctx.channel.edit(name="طلب-🟡")
-    except: pass
-
-@bot.command()
-async def حذفروم(ctx):
-    await delete_ctx(ctx)
-    await ctx.channel.delete()
-
-# --- التشغيل ---
-keep_alive()
-bot.run(os.getenv("DISCORD_TOKEN"))
+// ضع الـ Token الخاص بك هنا
+client.login('YOUR_BOT_TOKEN_HERE');
