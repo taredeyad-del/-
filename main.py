@@ -21,19 +21,26 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 VOUCH_CH = 1511668692889370735
 LOG_CH = 1512027662665777152
 LOOP_CH = 1511557359800025088
+WELCOME_CH = 1511557359800025088 # قناة الترحيب
 AUTO_ROLE_ID = 1511674988602855566
 
 async def delete_ctx(ctx):
     try: await ctx.message.delete()
     except: pass
 
-# --- الأحداث ---
+# --- الأحداث (Events) ---
 @bot.event
 async def on_member_join(member):
+    # إعطاء رتبة
     role = member.guild.get_role(AUTO_ROLE_ID)
-    if role:
-        try: await member.add_roles(role)
-        except Exception as e: print(f"خطأ في إعطاء الرتبة: {e}")
+    if role: await member.add_roles(role)
+    
+    # رسالة ترحيب احترافية
+    welcome_channel = bot.get_channel(WELCOME_CH)
+    if welcome_channel:
+        embed = discord.Embed(title="✨ عضو جديد!", description=f"أهلاً بك {member.mention} في سيرفرنا! نورت السيرفر! 🚀", color=discord.Color.blue())
+        embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
+        await welcome_channel.send(embed=embed)
 
 @bot.event
 async def on_message_delete(message):
@@ -45,20 +52,17 @@ async def on_message_delete(message):
         embed.add_field(name="المحتوى", value=message.content or "لا يوجد نص", inline=False)
         await log_channel.send(embed=embed)
 
-# --- نظام نبض البوت ---
 @tasks.loop(seconds=60)
 async def periodic_message():
     channel = bot.get_channel(LOOP_CH)
-    if channel:
-        await channel.send("✅ **System Status: Online**")
+    if channel: await channel.send("✅ **System Status: Online**")
 
 @bot.event
 async def on_ready():
     print(f"✅ البوت متصل: {bot.user}")
-    if not periodic_message.is_running():
-        periodic_message.start()
+    if not periodic_message.is_running(): periodic_message.start()
 
-# --- كلاس الأزرار (تعديل الرسالة عند الضغط) ---
+# --- كلاس التقييم (تعديل الرسالة) ---
 class RatingButtons(discord.ui.View):
     def __init__(self, review_text):
         super().__init__(timeout=None)
@@ -73,7 +77,6 @@ class RatingButtons(discord.ui.View):
             embed.add_field(name="العميل", value=interaction.user.mention, inline=False)
             await vouch_channel.send(embed=embed)
         
-        # تعديل الرسالة بدل حذفها (حل مضمون)
         new_embed = discord.Embed(title="شكراً لتقييمك! ✅", description="تم إرسال تقييمك بنجاح.", color=discord.Color.green())
         await interaction.response.edit_message(embed=new_embed, view=None)
 
