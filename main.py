@@ -1,5 +1,5 @@
 import discord
-from discord.ext import commands, tasks
+from discord.ext import commands
 from flask import Flask
 from threading import Thread
 import os
@@ -15,19 +15,11 @@ Thread(target=run_web).start()
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# القنوات (تأكد من صحة هذه الإيديات)
 VOUCH_CH = 1511668692889370735
 LOG_CH = 1512027662665777152
 bot_deleted_messages = set()
 
-# --- وظائف مساعدة ---
-async def delete_command(ctx):
-    try:
-        bot_deleted_messages.add(ctx.message.id)
-        await ctx.message.delete()
-    except: pass
-
-# --- نظام التقييم (Vouch) ---
+# --- نظام التقييم بـ 5 خيارات ---
 class RatingButtons(discord.ui.View):
     def __init__(self, author):
         super().__init__(timeout=120)
@@ -39,12 +31,26 @@ class RatingButtons(discord.ui.View):
         embed.add_field(name="من", value=interaction.user.mention, inline=False)
         embed.add_field(name="لـ", value=self.author.mention, inline=False)
         if vouch: await vouch.send(embed=embed)
-        await interaction.response.send_message("تم إرسال تقييمك بنجاح", ephemeral=True)
+        await interaction.response.send_message(f"تم إرسال تقييمك {stars} نجوم بنجاح", ephemeral=True)
 
+    @discord.ui.button(label="⭐", style=discord.ButtonStyle.gray)
+    async def star1(self, i, b): await self.send_rating(i, 1)
+    @discord.ui.button(label="⭐⭐", style=discord.ButtonStyle.gray)
+    async def star2(self, i, b): await self.send_rating(i, 2)
+    @discord.ui.button(label="⭐⭐⭐", style=discord.ButtonStyle.gray)
+    async def star3(self, i, b): await self.send_rating(i, 3)
+    @discord.ui.button(label="⭐⭐⭐⭐", style=discord.ButtonStyle.gray)
+    async def star4(self, i, b): await self.send_rating(i, 4)
     @discord.ui.button(label="⭐⭐⭐⭐⭐", style=discord.ButtonStyle.green)
-    async def five_star(self, i, b): await self.send_rating(i, 5)
+    async def star5(self, i, b): await self.send_rating(i, 5)
 
-# --- أوامر البوت ---
+# --- الأوامر ---
+async def delete_command(ctx):
+    try:
+        bot_deleted_messages.add(ctx.message.id)
+        await ctx.message.delete()
+    except: pass
+
 @bot.command()
 async def تقييم(ctx, member: discord.Member = None):
     await delete_command(ctx)
