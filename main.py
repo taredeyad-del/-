@@ -58,10 +58,10 @@ async def on_ready():
     if not periodic_message.is_running():
         periodic_message.start()
 
-# --- كلاس التقييم ---
+# --- كلاس الأزرار (نجوم دائمة) ---
 class RatingButtons(discord.ui.View):
     def __init__(self, review_text):
-        super().__init__(timeout=120)
+        super().__init__(timeout=None)
         self.review_text = review_text
 
     async def send_vouch(self, interaction, stars):
@@ -72,10 +72,16 @@ class RatingButtons(discord.ui.View):
             embed.add_field(name="التعليق", value=self.review_text, inline=False)
             embed.add_field(name="العميل", value=interaction.user.mention, inline=False)
             await vouch_channel.send(embed=embed)
-        await interaction.response.send_message(f"✅ تم رصد التقييم!", ephemeral=True)
-        try: await interaction.message.delete()
-        except: pass
+        await interaction.response.send_message(f"✅ تم تسجيل تقييمك بـ {stars} نجوم!", ephemeral=True)
 
+    @discord.ui.button(label="⭐", style=discord.ButtonStyle.secondary)
+    async def s1(self, i, b): await self.send_vouch(i, 1)
+    @discord.ui.button(label="⭐⭐", style=discord.ButtonStyle.secondary)
+    async def s2(self, i, b): await self.send_vouch(i, 2)
+    @discord.ui.button(label="⭐⭐⭐", style=discord.ButtonStyle.secondary)
+    async def s3(self, i, b): await self.send_vouch(i, 3)
+    @discord.ui.button(label="⭐⭐⭐⭐", style=discord.ButtonStyle.secondary)
+    async def s4(self, i, b): await self.send_vouch(i, 4)
     @discord.ui.button(label="⭐⭐⭐⭐⭐", style=discord.ButtonStyle.success)
     async def s5(self, i, b): await self.send_vouch(i, 5)
 
@@ -90,19 +96,19 @@ async def vouch(ctx, *, review_text: str = "بدون تعليق"):
 async def طلب(ctx): 
     await delete_ctx(ctx)
     try: await ctx.channel.edit(name="طلب-🔵")
-    except Exception as e: print(f"خطأ: {e}")
+    except: pass
 
 @bot.command()
 async def تماستلامطلب(ctx): 
     await delete_ctx(ctx)
     try: await ctx.channel.edit(name="طلب-🟢")
-    except Exception as e: print(f"خطأ: {e}")
+    except: pass
 
 @bot.command()
 async def تمارسالطلب(ctx): 
     await delete_ctx(ctx)
     try: await ctx.channel.edit(name="طلب-🟡")
-    except Exception as e: print(f"خطأ: {e}")
+    except: pass
 
 @bot.command()
 async def حذفروم(ctx):
