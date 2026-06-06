@@ -1,8 +1,19 @@
 import discord
 from discord.ext import commands, tasks
 import os
+from flask import Flask
+from threading import Thread
 
-# إعداد الصلاحيات (مهم جداً لتفعيل Member Join)
+# --- إعداد نظام الإبقاء على البوت نشطاً (Flask) ---
+app = Flask('')
+@app.route('/')
+def home(): return "البوت يعمل الآن!"
+def run_flask(): app.run(host='0.0.0.0', port=8080)
+def keep_alive():
+    t = Thread(target=run_flask)
+    t.start()
+
+# --- إعداد البوت ---
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
@@ -16,7 +27,7 @@ async def delete_ctx(ctx):
     try: await ctx.message.delete()
     except: pass
 
-# --- حدث دخول عضو جديد ---
+# --- الأحداث ---
 @bot.event
 async def on_member_join(member):
     role = member.guild.get_role(AUTO_ROLE_ID)
@@ -24,7 +35,6 @@ async def on_member_join(member):
         try: await member.add_roles(role)
         except Exception as e: print(f"خطأ في إعطاء الرتبة: {e}")
 
-# --- نظام اللوق للرسائل المحذوفة ---
 @bot.event
 async def on_message_delete(message):
     if message.author.bot: return
@@ -35,7 +45,6 @@ async def on_message_delete(message):
         embed.add_field(name="المحتوى", value=message.content or "لا يوجد نص", inline=False)
         await log_channel.send(embed=embed)
 
-# --- نظام الرسالة الدورية ---
 @tasks.loop(seconds=10)
 async def periodic_message():
     channel = bot.get_channel(LOOP_CH)
@@ -104,4 +113,6 @@ async def حذفروم(ctx):
     await delete_ctx(ctx)
     await ctx.channel.delete()
 
+# --- التشغيل ---
+keep_alive()
 bot.run(os.getenv("DISCORD_TOKEN"))
