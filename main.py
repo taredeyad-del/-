@@ -19,15 +19,14 @@ intents.message_content = True
 intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# الإيديات المسموح لها (الاونر + الكو اونر + البوتات)
+# الإيديات المسموح لها
 AUTHORIZED_IDS = [1511553830838468628, 1511553933053661224, 1511675475825787010]
 
-# --- 3. نظام التحقق من الصلاحيات ---
+# --- 3. نظام التحقق ---
 def is_authorized(ctx):
-    # يتحقق هل المستخدم يملك واحداً من الإيديات المسموحة
     return ctx.author.id in AUTHORIZED_IDS
 
-# --- 4. الأوامر المحمية (كل الرتب المذكورة أعلاه) ---
+# --- 4. الأوامر ---
 
 @bot.command(name="ارسالبياناتطلب")
 @commands.check(is_authorized)
@@ -66,14 +65,18 @@ async def s(ctx):
 async def c(ctx):
     if "ticket" in ctx.channel.name.lower(): await ctx.channel.edit(name="شكوة-عميل-🔴")
 
-# --- 5. المهام (Keep Alive) ---
-@tasks.loop(minutes=5)
-async def keep_alive():
-    pass
+# --- 5. معالج الأخطاء الصامت (يمنع الرسائل الحمراء في الـ Logs) ---
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.CommandNotFound):
+        return  # يتجاهل أي أمر غير موجود ولن يظهر خطأ
+    if isinstance(error, commands.CheckFailure):
+        return  # يتجاهل خطأ عدم الصلاحية
+    raise error
 
+# --- 6. التشغيل ---
 @bot.event
 async def on_ready():
     print(f"✅ جاهز: {bot.user}")
-    keep_alive.start()
 
 bot.run(os.getenv("DISCORD_TOKEN"))
