@@ -1,5 +1,5 @@
 import discord
-from discord.ext import commands, tasks
+from discord.ext import commands
 from flask import Flask
 from threading import Thread
 import os
@@ -15,15 +15,19 @@ Thread(target=run_web).start()
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# القنوات (تأكد من مطابقة هذه الإيديات لما هو موجود في سيرفرك)
-WELCOME_CH = 1511571690294083716
+# القنوات
 VOUCH_CH = 1511668692889370735
-SLEEP_CH = 1511557359800025088
 LOG_CH = 1512027662665777152
 
-bot_deleted_messages = set()
+@bot.event
+async def on_ready():
+    print(f"✅ البوت جاهز: {bot.user}")
+    # إرسال رسالة واحدة فقط عند التشغيل بدلاً من التكرار
+    log_channel = bot.get_channel(LOG_CH)
+    if log_channel:
+        await log_channel.send("🤖 البوت يعمل الآن وبدأ الاستقبال...")
 
-# --- نظام التقييم (vouch) بالأزرار ---
+# --- نظام التقييم ---
 class RatingButtons(discord.ui.View):
     def __init__(self, author):
         super().__init__(timeout=120)
@@ -37,33 +41,25 @@ class RatingButtons(discord.ui.View):
         if vouch: await vouch.send(embed=embed)
         await interaction.response.send_message("تم إرسال تقييمك بنجاح", ephemeral=True)
 
-    @discord.ui.button(label="⭐", style=discord.ButtonStyle.gray)
-    async def one_star(self, i, b): await self.send_rating(i, 1)
-    @discord.ui.button(label="⭐⭐", style=discord.ButtonStyle.gray)
-    async def two_star(self, i, b): await self.send_rating(i, 2)
-    @discord.ui.button(label="⭐⭐⭐", style=discord.ButtonStyle.gray)
-    async def three_star(self, i, b): await self.send_rating(i, 3)
-    @discord.ui.button(label="⭐⭐⭐⭐", style=discord.ButtonStyle.gray)
-    async def four_star(self, i, b): await self.send_rating(i, 4)
     @discord.ui.button(label="⭐⭐⭐⭐⭐", style=discord.ButtonStyle.green)
     async def five_star(self, i, b): await self.send_rating(i, 5)
 
-# --- أوامر البوت ---
 @bot.command()
 async def تقييم(ctx, member: discord.Member = None):
     member = member or ctx.author
     embed = discord.Embed(title="قيّم العضو", description=f"اختر تقييمك لـ {member.mention}", color=discord.Color.pink())
     await ctx.send(embed=embed, view=RatingButtons(member))
 
+# --- أوامر التعديل (تحتاج صلاحية Manage Channels في الـ Portal) ---
 @bot.command()
-async def طلب(ctx): await ctx.channel.edit(name="🟢・طلب")
+async def طلب(ctx): 
+    await ctx.channel.edit(name="🟢・طلب")
+    await ctx.send("✅ تم تحديث الحالة")
 
 @bot.command(name="شكوى")
-async def شكوى(ctx): await ctx.channel.edit(name="🔴・شكوى")
-
-@bot.command()
-async def حذف(ctx, amount: int = 1):
-    await ctx.channel.purge(limit=amount + 1)
+async def شكوى(ctx): 
+    await ctx.channel.edit(name="🔴・شكوى")
+    await ctx.send("✅ تم تحديث الحالة")
 
 @bot.event
 async def on_message_delete(message):
@@ -74,8 +70,5 @@ async def on_message_delete(message):
         embed.add_field(name="الكاتب", value=message.author.mention, inline=False)
         embed.add_field(name="الرسالة", value=message.content, inline=False)
         await log.send(embed=embed)
-
-@bot.event
-async def on_ready(): print(f"✅ البوت جاهز: {bot.user}")
 
 bot.run(os.getenv("DISCORD_TOKEN"))
