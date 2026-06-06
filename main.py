@@ -1,5 +1,5 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from flask import Flask
 from threading import Thread
 import os
@@ -7,7 +7,7 @@ import os
 # --- إعداد الويب ---
 app = Flask("")
 @app.route("/")
-def home(): return "Bot is Alive"
+def home(): return "Bot is alive"
 def run_web(): app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
 Thread(target=run_web).start()
 
@@ -15,19 +15,19 @@ Thread(target=run_web).start()
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# القنوات
+# القنوات (تأكد من صحة هذه الإيديات)
 VOUCH_CH = 1511668692889370735
 LOG_CH = 1512027662665777152
+bot_deleted_messages = set()
 
-@bot.event
-async def on_ready():
-    print(f"✅ البوت جاهز: {bot.user}")
-    # إرسال رسالة واحدة فقط عند التشغيل بدلاً من التكرار
-    log_channel = bot.get_channel(LOG_CH)
-    if log_channel:
-        await log_channel.send("🤖 البوت يعمل الآن وبدأ الاستقبال...")
+# --- وظائف مساعدة ---
+async def delete_command(ctx):
+    try:
+        bot_deleted_messages.add(ctx.message.id)
+        await ctx.message.delete()
+    except: pass
 
-# --- نظام التقييم ---
+# --- نظام التقييم (Vouch) ---
 class RatingButtons(discord.ui.View):
     def __init__(self, author):
         super().__init__(timeout=120)
@@ -44,31 +44,40 @@ class RatingButtons(discord.ui.View):
     @discord.ui.button(label="⭐⭐⭐⭐⭐", style=discord.ButtonStyle.green)
     async def five_star(self, i, b): await self.send_rating(i, 5)
 
+# --- أوامر البوت ---
 @bot.command()
 async def تقييم(ctx, member: discord.Member = None):
+    await delete_command(ctx)
     member = member or ctx.author
     embed = discord.Embed(title="قيّم العضو", description=f"اختر تقييمك لـ {member.mention}", color=discord.Color.pink())
     await ctx.send(embed=embed, view=RatingButtons(member))
 
-# --- أوامر التعديل (تحتاج صلاحية Manage Channels في الـ Portal) ---
 @bot.command()
 async def طلب(ctx): 
+    await delete_command(ctx)
     await ctx.channel.edit(name="🟢・طلب")
-    await ctx.send("✅ تم تحديث الحالة")
 
-@bot.command(name="شكوى")
+@bot.command()
 async def شكوى(ctx): 
+    await delete_command(ctx)
     await ctx.channel.edit(name="🔴・شكوى")
-    await ctx.send("✅ تم تحديث الحالة")
+
+@bot.command()
+async def حذفروم(ctx):
+    await delete_command(ctx)
+    await ctx.channel.delete()
 
 @bot.event
 async def on_message_delete(message):
-    if message.author.bot: return
+    if message.author.bot or message.id in bot_deleted_messages: return
     log = bot.get_channel(LOG_CH)
     if log:
         embed = discord.Embed(title="رسالة محذوفة", color=discord.Color.red())
         embed.add_field(name="الكاتب", value=message.author.mention, inline=False)
-        embed.add_field(name="الرسالة", value=message.content, inline=False)
+        embed.add_field(name="الرسالة", value=message.content or "لا يوجد نص", inline=False)
         await log.send(embed=embed)
+
+@bot.event
+async def on_ready(): print(f"✅ البوت متصل: {bot.user}")
 
 bot.run(os.getenv("DISCORD_TOKEN"))
