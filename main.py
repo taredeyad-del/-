@@ -1,67 +1,63 @@
 import discord
 from discord.ext import commands
-from flask import Flask, request, jsonify
-from threading import Thread
-import os
+from discord import ui
 import sqlite3
+import os
 
 # --- إعداد قاعدة البيانات ---
 db = sqlite3.connect("invoices.db", check_same_thread=False)
 cursor = db.cursor()
-cursor.execute("CREATE TABLE IF NOT EXISTS invoices (id TEXT PRIMARY KEY, data TEXT)")
+cursor.execute("CREATE TABLE IF NOT EXISTS invoices (id TEXT PRIMARY KEY, embed_data TEXT)")
 db.commit()
 
-# --- إعداد الويب ---
-app = Flask("")
-@app.route("/webhook/sellauth", methods=["POST"])
-def sellauth_webhook():
-    data = request.json
-    invoice_id = str(data.get("id"))
-    # حفظ بيانات الفاتورة في قاعدة البيانات
-    cursor.execute("INSERT OR REPLACE INTO invoices VALUES (?, ?)", (invoice_id, str(data)))
-    db.commit()
-    return jsonify({"status": "success"}), 200
-
-def run_web(): app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
-Thread(target=run_web).start()
-
-# --- إعداد البوت ---
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
+
+# --- الكلاسات الخاصة بالتفاعل ---
+class InvoiceSelect(ui.Select):
+    def __init__(self, rows):
+        options = [discord.SelectOption(label=f"Invoice #{r[0]}", value=str(r[0])) for r in rows]
+        super().__init__(placeholder="اختر فاتورة...", options=options)
+    
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.send_message(f"✅ تم اختيار الفاتورة {self.values[0]}. أرسل 'رابط الفاتورة' الآن.", ephemeral=True)
+        # تخزين الفاتورة المختارة في الـ View
+        self.view.selected_id = self.values[0]
+
+class InvoiceView(ui.View):
+    def __init__(self, rows):
+        super().__init__()
+        self.add_item(InvoiceSelect(rows))
+        self.selected_id = None
+
+# --- الأوامر ---
+@bot.command()
+async def سحب(ctx):
+    channel = bot.get_channel(1513129732378726440)
+    count = 0
+    async for message in channel.history(limit=50):
+        if message.embeds:
+            embed = message.embeds[0]
+            if "Invoice" in (embed.title or ""):
+                inv_id = embed.title.replace("Invoice #", "")
+                cursor.execute("INSERT OR REPLACE INTO invoices VALUES (?, ?)", (inv_id, str(embed.to_dict())))
+                db.commit()
+                count += 1
+    await ctx.send(f"✅ تم سحب {count} فاتورة!")
 
 @bot.command()
 async def فاتورة(ctx):
     cursor.execute("SELECT * FROM invoices")
     rows = cursor.fetchall()
     if not rows:
-        await ctx.send("لا توجد فواتير محفوظة.")
+        await ctx.send("لا توجد فواتير.", ephemeral=True)
         return
-    for row in rows:
-        await ctx.send(f"**Invoice #{row[0]}**\nالبيانات: {row[1][:100]}...")
-
-# --- نظام التقييم التفاعلي (الذي طلبته) ---
-@bot.command()
-async def vouch(ctx, member: discord.Member):
-    await ctx.message.delete()
-    msg = await ctx.send(f"يا {member.mention}، يرجى كتابة تعليقك عن الطلب:")
-
-    def check(m):
-        return m.author == member and m.channel == ctx.channel
-
-    try:
-        comment_msg = await bot.wait_for('message', timeout=60.0, check=check)
-        await comment_msg.delete()
-        
-        embed = discord.Embed(title="✅ تقييم جديد", color=discord.Color.gold())
-        embed.add_field(name="العميل", value=member.mention, inline=False)
-        embed.add_field(name="التعليق", value=comment_msg.content, inline=False)
-        await ctx.send(embed=embed)
-        await msg.delete()
-    except:
-        await msg.delete()
+    
+    view = InvoiceView(rows)
+    await ctx.send("قائمة الفواتير المتاحة:", view=view, ephemeral=True)
 
 @bot.event
 async def on_ready():
-    print(f"✅ البوت متصل: {bot.user}")
+    print(f"✅ البوت {bot.user} جاهز للعمل!")
 
 bot.run(os.getenv("DISCORD_TOKEN"))
