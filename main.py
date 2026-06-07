@@ -1,5 +1,5 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord import ui
 from flask import Flask
 from threading import Thread
@@ -39,7 +39,15 @@ async def delete_command(ctx):
         await ctx.message.delete()
     except: pass
 
-# --- نظام الفاتورة (جديد) ---
+# --- المهمة التلقائية ---
+@tasks.loop(seconds=10)
+async def auto_message():
+    channel = bot.get_channel(VOUCH_CH)
+    if channel:
+        try: await channel.send("🚀 متجرنا متاح لخدمتكم، نسعد بتقييماتكم!")
+        except: pass
+
+# --- الأنظمة (فواتير وتقييم) ---
 class InvoiceSelect(ui.Select):
     def __init__(self, rows):
         options = [discord.SelectOption(label=f"Invoice #{r[0]}", value=str(r[0])) for r in rows]
@@ -52,12 +60,10 @@ class InvoiceView(ui.View):
         super().__init__()
         self.add_item(InvoiceSelect(rows))
 
-# --- نظام التقييم الأصلي الخاص بك ---
 class RatingButtons(discord.ui.View):
     def __init__(self, author, comment):
         super().__init__(timeout=120)
-        self.author = author
-        self.comment = comment
+        self.author, self.comment = author, comment
 
     async def send_vouch(self, interaction, stars):
         vouch_channel = bot.get_channel(VOUCH_CH)
@@ -67,7 +73,7 @@ class RatingButtons(discord.ui.View):
             embed.add_field(name="التعليق", value=self.comment, inline=False)
             embed.add_field(name="التقييم", value=f"{'⭐' * stars}", inline=False)
             await vouch_channel.send(embed=embed)
-        await interaction.response.send_message("تم إرسال تقييمك بنجاح!", ephemeral=True)
+        await interaction.response.send_message("تم إرسال تقييمك!", ephemeral=True)
         await interaction.message.delete()
 
     @discord.ui.button(label="⭐", style=discord.ButtonStyle.gray)
@@ -85,11 +91,11 @@ class RatingButtons(discord.ui.View):
 @bot.command()
 async def vouch(ctx, member: discord.Member):
     await delete_command(ctx)
-    msg = await ctx.send(f"يا {member.mention}، يرجى كتابة تعليقك عن الطلب:")
+    msg = await ctx.send(f"يا {member.mention}، يرجى كتابة تعليقك:")
     def check(m): return m.author == member and m.channel == ctx.channel
     try:
         comment_msg = await bot.wait_for('message', timeout=60.0, check=check)
-        await msg.edit(content=f"تعليقك: '{comment_msg.content}'\nالآن اختر عدد النجوم:", view=RatingButtons(member, comment_msg.content))
+        await msg.edit(content=f"تعليقك: '{comment_msg.content}'\nاختر النجوم:", view=RatingButtons(member, comment_msg.content))
         await comment_msg.delete()
     except: await msg.delete()
 
@@ -97,12 +103,14 @@ async def vouch(ctx, member: discord.Member):
 async def سحب(ctx):
     channel = bot.get_channel(INVOICE_CH)
     count = 0
-    async for message in channel.history(limit=None):
+    # يقرأ العنوان والوصف وكل الحقول (Fields)
+    async for message in channel.history(limit=200):
         if message.embeds:
-            text = (message.embeds[0].title or "") + (message.embeds[0].description or "")
+            emb = message.embeds[0]
+            text = (emb.title or "") + (emb.description or "") + "".join([f.value for f in emb.fields])
             match = re.search(r'(\d{8})', text)
             if match:
-                cursor.execute("INSERT OR REPLACE INTO invoices VALUES (?, ?)", (match.group(1), "تم الحفظ"))
+                cursor.execute("INSERT OR REPLACE INTO invoices VALUES (?, ?)", (match.group(1), "تم"))
                 count += 1
     db.commit()
     await ctx.send(f"✅ تم سحب {count} فاتورة!", ephemeral=True)
@@ -114,7 +122,6 @@ async def فاتورة(ctx):
     if not rows: return await ctx.send("لا توجد فواتير.", ephemeral=True)
     await ctx.send("📋 اختر الفاتورة:", view=InvoiceView(rows), ephemeral=True)
 
-# --- أوامر تغيير اسم الروم ---
 @bot.command()
 @commands.check(is_admin)
 async def طلب(ctx): await delete_command(ctx); await ctx.channel.edit(name="طلب • 🔵")
@@ -135,6 +142,8 @@ async def اغلاق(ctx): await delete_command(ctx); await ctx.channel.edit(nam
 async def حذفروم(ctx): await delete_command(ctx); await ctx.channel.delete()
 
 @bot.event
-async def on_ready(): print(f"✅ البوت متصل: {bot.user}")
+async def on_ready():
+    print(f"✅ البوت متصل: {bot.user}")
+    auto_message.start()
 
 bot.run(os.getenv("DISCORD_TOKEN"))
