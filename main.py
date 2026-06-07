@@ -1,102 +1,112 @@
-import asyncio
 import discord
 from discord.ext import commands
-import os
 from flask import Flask
 from threading import Thread
-from openai import OpenAI
+import os
 
-# إعداد OpenAI
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-# --- إعداد نظام الإبقاء على البوت نشطاً ---
-app = Flask('')
-@app.route('/')
-def home(): return "البوت يعمل الآن!"
-def run_flask(): app.run(host='0.0.0.0', port=8080)
-def keep_alive():
-    t = Thread(target=run_flask)
-    t.start()
+# --- إعداد الويب ---
+app = Flask("")
+@app.route("/")
+def home(): return "Bot is alive"
+def run_web(): app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+Thread(target=run_web).start()
 
 # --- إعداد البوت ---
-intents = discord.Intents.default()
-intents.message_content = True
+intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# --- إعدادات ---
+# الثوابت
 VOUCH_CH = 1511668692889370735
-PROTECTED_CHANNELS = [1511662934349316188, 1511663266882130042, 1511663314651058237]
+LOG_CH = 1512027662665777152
+OWNER_IDS = [1511553830838468628, 1511553933053661224]
+bot_deleted_messages = set()
 
-# --- نظام السجن (AI Jail) ---
-async def jail_user(message):
+def is_admin(ctx):
+    return ctx.author.id in OWNER_IDS or any(role.id in OWNER_IDS for role in ctx.author.roles)
+
+async def delete_command(ctx):
     try:
-        await message.delete()
-        # إرسال تحذير للعضو
-        warning = await message.channel.send(f"⚠️ {message.author.mention} تم سجنك في مكافحة البيع لمدة 15 دقيقة.")
-        
-        # سجن العضو (منع إرسال الرسائل في هذا الروم)
-        overwrite = discord.PermissionOverwrite(send_messages=False)
-        await message.channel.set_permissions(message.author, overwrite=overwrite)
-        
-        await asyncio.sleep(900) # 15 دقيقة
-        
-        # فك السجن
-        await message.channel.set_permissions(message.author, overwrite=None)
-        await warning.delete()
-    except Exception as e:
-        print(f"خطأ في نظام السجن: {e}")
+        bot_deleted_messages.add(ctx.message.id)
+        await ctx.message.delete()
+    except: pass
 
-# --- فحص الـ AI ---
-async def is_selling_attempt(content):
+# --- الأوامر الإدارية ---
+@bot.command()
+@commands.check(is_admin)
+async def طلب(ctx): 
+    await delete_command(ctx)
+    await ctx.channel.edit(name="طلب • 🔵")
+
+@bot.command()
+@commands.check(is_admin)
+async def تمارسالطلب(ctx): 
+    await delete_command(ctx)
+    await ctx.channel.edit(name="طلب • 🟡")
+
+@bot.command()
+@commands.check(is_admin)
+async def تماستلامطلب(ctx): 
+    await delete_command(ctx)
+    await ctx.channel.edit(name="طلب • 🟢")
+
+@bot.command()
+@commands.check(is_admin)
+async def شكوى(ctx): 
+    await delete_command(ctx)
+    await ctx.channel.edit(name="شكوة • 🔴")
+
+@bot.command()
+@commands.check(is_admin)
+async def اغلاق(ctx): 
+    await delete_command(ctx)
+    await ctx.channel.edit(name="شكوة • 🟢")
+
+@bot.command()
+@commands.check(is_admin)
+async def حذفروم(ctx):
+    await delete_command(ctx)
+    await ctx.channel.delete()
+
+# --- نظام التقييم التفاعلي ---
+@bot.command()
+async def vouch(ctx, member: discord.Member):
+    await delete_command(ctx)
+    msg = await ctx.send(f"يا {member.mention}، يرجى كتابة عدد النجوم التي تستحقها (من 1 إلى 5) في هذه القناة.")
+
+    def check(m):
+        return m.author == member and m.channel == ctx.channel and m.content.isdigit()
+
     try:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "أنت نظام أمني. إذا كانت الرسالة محاولة بيع أو شراء، أجب بـ 'YES'، وإلا 'NO'."},
-                {"role": "user", "content": content}
-            ]
-        )
-        return "YES" in response.choices[0].message.content.upper()
-    except: return False
+        response = await bot.wait_for('message', timeout=60.0, check=check)
+        stars = int(response.content)
+        
+        if 1 <= stars <= 5:
+            vouch_channel = bot.get_channel(VOUCH_CH)
+            if vouch_channel:
+                embed = discord.Embed(title="✅ تقييم جديد", color=discord.Color.gold())
+                embed.add_field(name="العميل", value=member.mention, inline=False)
+                embed.add_field(name="التقييم", value=f"{'⭐' * stars}", inline=False)
+                await vouch_channel.send(embed=embed)
+            await response.delete()
+            await msg.delete()
+        else:
+            await ctx.send("يرجى إدخال رقم بين 1 و 5 فقط.", delete_after=5)
+            await msg.delete()
+    except:
+        await msg.delete()
 
-# --- الأحداث ---
+# --- اللوج ---
 @bot.event
-async def on_message(message):
-    if message.author.bot:
-        await bot.process_commands(message)
-        return
+async def on_message_delete(message):
+    if message.author.bot or message.id in bot_deleted_messages: return
+    log = bot.get_channel(LOG_CH)
+    if log:
+        embed = discord.Embed(title="رسالة محذوفة", color=discord.Color.red())
+        embed.add_field(name="الكاتب", value=message.author.mention, inline=False)
+        embed.add_field(name="الرسالة", value=message.content or "لا يوجد نص", inline=False)
+        await log.send(embed=embed)
 
-    # الحماية
-    if message.channel.id in PROTECTED_CHANNELS and not message.content.startswith('!'):
-        if await is_selling_attempt(message.content):
-            await jail_user(message)
-            return
+@bot.event
+async def on_ready(): print(f"✅ البوت متصل: {bot.user}")
 
-    await bot.process_commands(message)
-
-# --- الأوامر القديمة (helpot + طلبات) ---
-@bot.command()
-async def helpot(ctx, *, question: str):
-    async with ctx.channel.typing():
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "system", "content": "أنت مساعد ذكي."}, {"role": "user", "content": question}]
-        )
-        await ctx.send(f"🤖 **المساعد الذكي:**\n{response.choices[0].message.content}")
-
-@bot.command()
-async def vouch(ctx, *, text="بدون تعليق"):
-    # (كود التقييم القديم)
-    await ctx.send("تم استلام التقييم!")
-
-@bot.command()
-async def طلب(ctx): await ctx.channel.edit(name="طلب-🔵")
-@bot.command()
-async def تماستلامطلب(ctx): await ctx.channel.edit(name="طلب-🟡")
-@bot.command()
-async def تمارسالطلب(ctx): await ctx.channel.edit(name="طلب-🟢")
-@bot.command()
-async def حذفروم(ctx): await ctx.channel.delete()
-
-keep_alive()
 bot.run(os.getenv("DISCORD_TOKEN"))
