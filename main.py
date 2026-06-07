@@ -25,7 +25,6 @@ db.commit()
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# الثوابت
 VOUCH_CH = 1511668692889370735
 INVOICE_CH = 1513129732378726440
 OWNER_IDS = [1511553830838468628, 1511553933053661224]
@@ -37,7 +36,6 @@ async def delete_command(ctx):
     try: await ctx.message.delete()
     except: pass
 
-# --- المهام التلقائية ---
 @tasks.loop(seconds=10)
 async def auto_message():
     channel = bot.get_channel(VOUCH_CH)
@@ -56,7 +54,7 @@ class InvoiceSelect(ui.Select):
         row = cursor.fetchone()
         if not row: return await interaction.response.send_message("❌ لم يتم العثور على الفاتورة.", ephemeral=True)
         
-        await interaction.response.send_message(f"✅ اخترت الفاتورة {self.values[0]}، أرسل رابط التحقق الآن:", ephemeral=True)
+        await interaction.response.send_message(f"✅ اخترت الفاتورة {self.values[0]}، أرسل رابط التحقق:", ephemeral=True)
         def check(m): return m.author == interaction.user and m.channel == interaction.channel
         try:
             link_msg = await bot.wait_for('message', timeout=60.0, check=check)
@@ -67,7 +65,7 @@ class InvoiceSelect(ui.Select):
             embed.title = f"Invoice #{self.values[0]}"
             embed.url = link
             await interaction.channel.send(embed=embed)
-            await interaction.followup.send("✅ تم إرسال الفاتورة!", ephemeral=True)
+            await interaction.followup.send("✅ تم الإرسال!", ephemeral=True)
         except: await interaction.followup.send("❌ انتهى الوقت.", ephemeral=True)
 
 class InvoiceView(ui.View):
@@ -75,7 +73,7 @@ class InvoiceView(ui.View):
         super().__init__()
         self.add_item(InvoiceSelect(rows))
 
-# --- نظام التقييم (محدث بـ 5 نجوم كاملة) ---
+# --- نظام التقييم ---
 class RatingButtons(discord.ui.View):
     def __init__(self, member, comment):
         super().__init__(timeout=None)
@@ -90,7 +88,7 @@ class RatingButtons(discord.ui.View):
             embed.add_field(name="التعليق", value=self.comment, inline=False)
             embed.add_field(name="التقييم", value=f"{'⭐' * stars}", inline=False)
             await vouch_channel.send(embed=embed)
-        await interaction.response.send_message("تم إرسال تقييمك!", ephemeral=True)
+        await interaction.response.send_message("تم التقييم!", ephemeral=True)
 
     @discord.ui.button(label="⭐", style=discord.ButtonStyle.secondary)
     async def s1(self, i, b): await self.send_vouch(i, 1)
@@ -107,11 +105,12 @@ class RatingButtons(discord.ui.View):
 @bot.command()
 async def vouch(ctx, member: discord.Member):
     await delete_command(ctx)
-    msg = await ctx.send(f"يا {member.mention}، يرجى كتابة تعليقك:")
+    msg = await ctx.send(f"يا {member.mention}، اكتب تعليقك:")
     def check(m): return m.author == member and m.channel == ctx.channel
     try:
         comment_msg = await bot.wait_for('message', timeout=60.0, check=check)
-        await msg.edit(content=f"تعليقك: '{comment_msg.content}'\nاختر النجوم:", view=RatingButtons(member, comment_msg.content))
+        await msg.edit(content=f"تعليقك: '{comment_msg.content}'\nاختر التقييم:", view=RatingButtons(member, comment_msg.content))
+        await comment_msg.delete()
     except: await msg.delete()
 
 @bot.command()
@@ -119,18 +118,24 @@ async def سحب(ctx):
     await delete_command(ctx)
     channel = bot.get_channel(INVOICE_CH)
     count = 0
+    # بحث شامل في العنوان والوصف والحقول (Fields)
     async for message in channel.history(limit=200):
         if message.embeds:
             emb = message.embeds[0]
-            text = (emb.title or "") + (emb.description or "")
-            match = re.search(r'(\d{8})', text)
+            # دمج كل محتوى الـ Embed للبحث فيه
+            full_text = (emb.title or "") + (emb.description or "")
+            for field in emb.fields:
+                full_text += (field.name or "") + (field.value or "")
+            
+            # البحث عن أي رقم مكون من 8 أرقام (رقم الفاتورة)
+            match = re.search(r'\d{8}', full_text)
             if match:
-                cursor.execute("INSERT OR REPLACE INTO invoices VALUES (?, ?)", (match.group(1), str(emb.to_dict())))
+                invoice_id = match.group(0)
+                # تخزين الـ Embed كاملاً بصيغة string
+                cursor.execute("INSERT OR REPLACE INTO invoices VALUES (?, ?)", (invoice_id, str(emb.to_dict())))
                 count += 1
     db.commit()
-    temp = await ctx.send(f"✅ تم سحب {count} فاتورة!")
-    await discord.utils.sleep_until(discord.utils.utcnow() + discord.timedelta(seconds=3))
-    await temp.delete()
+    await ctx.send(f"✅ تم سحب {count} فاتورة!", delete_after=5)
 
 @bot.command()
 async def فاتورة(ctx):
@@ -140,7 +145,6 @@ async def فاتورة(ctx):
     if not rows: return await ctx.send("لا توجد فواتير.", ephemeral=True)
     await ctx.send("📋 اختر الفاتورة:", view=InvoiceView(rows), ephemeral=True)
 
-# أوامر الإدارة
 @bot.command()
 @commands.check(is_admin)
 async def طلب(ctx): await delete_command(ctx); await ctx.channel.edit(name="طلب • 🔵")
