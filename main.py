@@ -45,7 +45,7 @@ async def auto_message():
         try: await channel.send("🚀 متجرنا متاح لخدمتكم، نسعد بتقييماتكم!")
         except: pass
 
-# --- نظام الفاتورة (مخفي وتفاعلي) ---
+# --- نظام الفاتورة ---
 class InvoiceSelect(ui.Select):
     def __init__(self, rows):
         options = [discord.SelectOption(label=f"Invoice #{r[0]}", value=str(r[0])) for r in rows]
@@ -64,7 +64,8 @@ class InvoiceSelect(ui.Select):
             await link_msg.delete()
             embed_dict = ast.literal_eval(row[0])
             embed = discord.Embed.from_dict(embed_dict)
-            embed.add_field(name="رابط الفاتورة", value=f"[Invoice #{self.values[0]}]({link})", inline=False)
+            embed.title = f"Invoice #{self.values[0]}"
+            embed.url = link
             await interaction.channel.send(embed=embed)
             await interaction.followup.send("✅ تم إرسال الفاتورة!", ephemeral=True)
         except: await interaction.followup.send("❌ انتهى الوقت.", ephemeral=True)
@@ -74,7 +75,7 @@ class InvoiceView(ui.View):
         super().__init__()
         self.add_item(InvoiceSelect(rows))
 
-# --- نظام التقييم (كما طلبته تماماً) ---
+# --- نظام التقييم (محدث بـ 5 نجوم كاملة) ---
 class RatingButtons(discord.ui.View):
     def __init__(self, member, comment):
         super().__init__(timeout=None)
@@ -115,21 +116,25 @@ async def vouch(ctx, member: discord.Member):
 
 @bot.command()
 async def سحب(ctx):
+    await delete_command(ctx)
     channel = bot.get_channel(INVOICE_CH)
     count = 0
     async for message in channel.history(limit=200):
         if message.embeds:
             emb = message.embeds[0]
-            text = (emb.title or "") + (emb.description or "") + "".join([f.value for f in emb.fields])
+            text = (emb.title or "") + (emb.description or "")
             match = re.search(r'(\d{8})', text)
             if match:
                 cursor.execute("INSERT OR REPLACE INTO invoices VALUES (?, ?)", (match.group(1), str(emb.to_dict())))
                 count += 1
     db.commit()
-    await ctx.send(f"✅ تم سحب {count} فاتورة!", ephemeral=True)
+    temp = await ctx.send(f"✅ تم سحب {count} فاتورة!")
+    await discord.utils.sleep_until(discord.utils.utcnow() + discord.timedelta(seconds=3))
+    await temp.delete()
 
 @bot.command()
 async def فاتورة(ctx):
+    await delete_command(ctx)
     cursor.execute("SELECT id FROM invoices")
     rows = cursor.fetchall()
     if not rows: return await ctx.send("لا توجد فواتير.", ephemeral=True)
