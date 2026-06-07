@@ -39,7 +39,7 @@ async def delete_command(ctx):
         await ctx.message.delete()
     except: pass
 
-# --- المهمة التلقائية ---
+# --- المهام التلقائية ---
 @tasks.loop(seconds=10)
 async def auto_message():
     channel = bot.get_channel(VOUCH_CH)
@@ -47,19 +47,32 @@ async def auto_message():
         try: await channel.send("🚀 متجرنا متاح لخدمتكم، نسعد بتقييماتكم!")
         except: pass
 
-# --- الأنظمة (فواتير وتقييم) ---
+# --- نظام الفاتورة التفاعلي (مخفي) ---
 class InvoiceSelect(ui.Select):
     def __init__(self, rows):
         options = [discord.SelectOption(label=f"Invoice #{r[0]}", value=str(r[0])) for r in rows]
         super().__init__(placeholder="اختر فاتورة...", options=options)
+    
     async def callback(self, interaction: discord.Interaction):
-        await interaction.response.send_message(f"✅ تم اختيار الفاتورة {self.values[0]}", ephemeral=True)
+        await interaction.response.send_message(f"✅ اخترت الفاتورة {self.values[0]}، يرجى إرسال رابط الفاتورة الآن:", ephemeral=True)
+        def check(m): return m.author == interaction.user and m.channel == interaction.channel
+        try:
+            link_msg = await bot.wait_for('message', timeout=60.0, check=check)
+            link = link_msg.content
+            await link_msg.delete()
+            embed = discord.Embed(title=f"فاتورة رقم {self.values[0]}", color=discord.Color.blue())
+            embed.add_field(name="الرابط", value=link, inline=False)
+            embed.set_footer(text=f"طلب من قبل: {interaction.user.name}")
+            await interaction.channel.send(embed=embed)
+            await interaction.followup.send("✅ تم إرسال الفاتورة في الروم بنجاح!", ephemeral=True)
+        except: await interaction.followup.send("❌ انتهى الوقت.", ephemeral=True)
 
 class InvoiceView(ui.View):
     def __init__(self, rows):
         super().__init__()
         self.add_item(InvoiceSelect(rows))
 
+# --- نظام التقييم ---
 class RatingButtons(discord.ui.View):
     def __init__(self, author, comment):
         super().__init__(timeout=120)
@@ -103,7 +116,6 @@ async def vouch(ctx, member: discord.Member):
 async def سحب(ctx):
     channel = bot.get_channel(INVOICE_CH)
     count = 0
-    # يقرأ العنوان والوصف وكل الحقول (Fields)
     async for message in channel.history(limit=200):
         if message.embeds:
             emb = message.embeds[0]
@@ -122,6 +134,7 @@ async def فاتورة(ctx):
     if not rows: return await ctx.send("لا توجد فواتير.", ephemeral=True)
     await ctx.send("📋 اختر الفاتورة:", view=InvoiceView(rows), ephemeral=True)
 
+# أوامر الإدارة
 @bot.command()
 @commands.check(is_admin)
 async def طلب(ctx): await delete_command(ctx); await ctx.channel.edit(name="طلب • 🔵")
