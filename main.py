@@ -1,5 +1,5 @@
 import discord
-from discord.ext import commands, tasks
+from discord.ext import commands
 from discord import ui
 from flask import Flask
 from threading import Thread
@@ -25,8 +25,10 @@ db.commit()
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+# الثوابت
 VOUCH_CH = 1511668692889370735
 INVOICE_CH = 1513129732378726440
+NEW_CH = 1511557359800025088 # الروم الجديد الذي أضفته
 OWNER_IDS = [1511553830838468628, 1511553933053661224]
 
 def is_admin(ctx):
@@ -35,13 +37,6 @@ def is_admin(ctx):
 async def delete_command(ctx):
     try: await ctx.message.delete()
     except: pass
-
-@tasks.loop(seconds=10)
-async def auto_message():
-    channel = bot.get_channel(VOUCH_CH)
-    if channel:
-        try: await channel.send("🚀 متجرنا متاح لخدمتكم، نسعد بتقييماتكم!")
-        except: pass
 
 # --- نظام الفاتورة ---
 class InvoiceSelect(ui.Select):
@@ -118,20 +113,16 @@ async def سحب(ctx):
     await delete_command(ctx)
     channel = bot.get_channel(INVOICE_CH)
     count = 0
-    # بحث شامل في العنوان والوصف والحقول (Fields)
     async for message in channel.history(limit=200):
         if message.embeds:
             emb = message.embeds[0]
-            # دمج كل محتوى الـ Embed للبحث فيه
             full_text = (emb.title or "") + (emb.description or "")
             for field in emb.fields:
                 full_text += (field.name or "") + (field.value or "")
             
-            # البحث عن أي رقم مكون من 8 أرقام (رقم الفاتورة)
             match = re.search(r'\d{8}', full_text)
             if match:
                 invoice_id = match.group(0)
-                # تخزين الـ Embed كاملاً بصيغة string
                 cursor.execute("INSERT OR REPLACE INTO invoices VALUES (?, ?)", (invoice_id, str(emb.to_dict())))
                 count += 1
     db.commit()
@@ -145,6 +136,7 @@ async def فاتورة(ctx):
     if not rows: return await ctx.send("لا توجد فواتير.", ephemeral=True)
     await ctx.send("📋 اختر الفاتورة:", view=InvoiceView(rows), ephemeral=True)
 
+# أوامر الإدارة
 @bot.command()
 @commands.check(is_admin)
 async def طلب(ctx): await delete_command(ctx); await ctx.channel.edit(name="طلب • 🔵")
@@ -167,6 +159,5 @@ async def حذفروم(ctx): await delete_command(ctx); await ctx.channel.delete
 @bot.event
 async def on_ready():
     print(f"✅ البوت متصل: {bot.user}")
-    auto_message.start()
 
 bot.run(os.getenv("DISCORD_TOKEN"))
