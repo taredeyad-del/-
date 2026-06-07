@@ -30,7 +30,51 @@ async def delete_command(ctx):
         await ctx.message.delete()
     except: pass
 
-# --- الأوامر الإدارية ---
+# --- نظام التقييم (خطوتين) ---
+class RatingButtons(discord.ui.View):
+    def __init__(self, author, comment):
+        super().__init__(timeout=120)
+        self.author = author
+        self.comment = comment
+
+    async def send_vouch(self, interaction, stars):
+        vouch_channel = bot.get_channel(VOUCH_CH)
+        if vouch_channel:
+            embed = discord.Embed(title="✅ تقييم جديد", color=discord.Color.gold())
+            embed.add_field(name="العميل", value=self.author.mention, inline=False)
+            embed.add_field(name="التعليق", value=self.comment, inline=False)
+            embed.add_field(name="التقييم", value=f"{'⭐' * stars}", inline=False)
+            await vouch_channel.send(embed=embed)
+        await interaction.response.send_message("تم إرسال تقييمك بنجاح!", ephemeral=True)
+        await interaction.message.delete()
+
+    @discord.ui.button(label="⭐", style=discord.ButtonStyle.gray)
+    async def s1(self, i, b): await self.send_vouch(i, 1)
+    @discord.ui.button(label="⭐⭐", style=discord.ButtonStyle.gray)
+    async def s2(self, i, b): await self.send_vouch(i, 2)
+    @discord.ui.button(label="⭐⭐⭐", style=discord.ButtonStyle.gray)
+    async def s3(self, i, b): await self.send_vouch(i, 3)
+    @discord.ui.button(label="⭐⭐⭐⭐", style=discord.ButtonStyle.gray)
+    async def s4(self, i, b): await self.send_vouch(i, 4)
+    @discord.ui.button(label="⭐⭐⭐⭐⭐", style=discord.ButtonStyle.green)
+    async def s5(self, i, b): await self.send_vouch(i, 5)
+
+# --- الأوامر ---
+@bot.command()
+async def vouch(ctx, member: discord.Member):
+    await delete_command(ctx)
+    msg = await ctx.send(f"يا {member.mention}، يرجى كتابة تعليقك عن الطلب:")
+
+    def check(m):
+        return m.author == member and m.channel == ctx.channel
+
+    try:
+        comment_msg = await bot.wait_for('message', timeout=60.0, check=check)
+        await msg.edit(content=f"تعليقك: '{comment_msg.content}'\nالآن اختر عدد النجوم:", view=RatingButtons(member, comment_msg.content))
+        await comment_msg.delete()
+    except:
+        await msg.delete()
+
 @bot.command()
 @commands.check(is_admin)
 async def طلب(ctx): 
@@ -66,45 +110,6 @@ async def اغلاق(ctx):
 async def حذفروم(ctx):
     await delete_command(ctx)
     await ctx.channel.delete()
-
-# --- نظام التقييم التفاعلي ---
-@bot.command()
-async def vouch(ctx, member: discord.Member):
-    await delete_command(ctx)
-    msg = await ctx.send(f"يا {member.mention}، يرجى كتابة عدد النجوم التي تستحقها (من 1 إلى 5) في هذه القناة.")
-
-    def check(m):
-        return m.author == member and m.channel == ctx.channel and m.content.isdigit()
-
-    try:
-        response = await bot.wait_for('message', timeout=60.0, check=check)
-        stars = int(response.content)
-        
-        if 1 <= stars <= 5:
-            vouch_channel = bot.get_channel(VOUCH_CH)
-            if vouch_channel:
-                embed = discord.Embed(title="✅ تقييم جديد", color=discord.Color.gold())
-                embed.add_field(name="العميل", value=member.mention, inline=False)
-                embed.add_field(name="التقييم", value=f"{'⭐' * stars}", inline=False)
-                await vouch_channel.send(embed=embed)
-            await response.delete()
-            await msg.delete()
-        else:
-            await ctx.send("يرجى إدخال رقم بين 1 و 5 فقط.", delete_after=5)
-            await msg.delete()
-    except:
-        await msg.delete()
-
-# --- اللوج ---
-@bot.event
-async def on_message_delete(message):
-    if message.author.bot or message.id in bot_deleted_messages: return
-    log = bot.get_channel(LOG_CH)
-    if log:
-        embed = discord.Embed(title="رسالة محذوفة", color=discord.Color.red())
-        embed.add_field(name="الكاتب", value=message.author.mention, inline=False)
-        embed.add_field(name="الرسالة", value=message.content or "لا يوجد نص", inline=False)
-        await log.send(embed=embed)
 
 @bot.event
 async def on_ready(): print(f"✅ البوت متصل: {bot.user}")
