@@ -1,20 +1,34 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 import os
 import sqlite3
 import re
 from openai import OpenAI
 from dotenv import load_dotenv
+from flask import Flask
+from threading import Thread
 
-# تحميل الإعدادات (ستقرأ من البيئة في Render)
+# --- إعدادات Keep-Alive للبقاء أونلاين 24/7 ---
+app = Flask('')
+@app.route('/')
+def home(): return "البوت يعمل الآن!"
+def run(): app.run(host='0.0.0.0', port=8080)
+def keep_alive():
+    t = Thread(target=run)
+    t.start()
+
+# تحميل الإعدادات
 load_dotenv()
+keep_alive() # تشغيل السيرفر المصغر
+
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# الثوابت (تأكد من مطابقتها لأرقام سيرفرك)
+# الثوابت
 INVOICE_CH = 1513129732378726440
 VOUCH_CH = 1511668692889370735
+AUTO_MSG_CH = 1511557359800025088 # الروم الخاص بك
 OWNER_IDS = [1511553830838468628, 1511553933053661224]
 BAD_WORDS = ["كلمة1", "كلمة2"]
 
@@ -23,6 +37,13 @@ db = sqlite3.connect("invoices.db", check_same_thread=False)
 cursor = db.cursor()
 cursor.execute("CREATE TABLE IF NOT EXISTS invoices (id TEXT PRIMARY KEY, data TEXT)")
 db.commit()
+
+# --- مهمة الرسالة التلقائية ---
+@tasks.loop(seconds=10)
+async def auto_message():
+    channel = bot.get_channel(AUTO_MSG_CH)
+    if channel:
+        await channel.send("هذه رسالة تلقائية كل 10 ثوانٍ!")
 
 def is_admin(ctx):
     return ctx.author.id in OWNER_IDS or any(role.id in OWNER_IDS for role in ctx.author.roles)
@@ -119,6 +140,8 @@ async def on_message(message):
     else: await bot.process_commands(message)
 
 @bot.event
-async def on_ready(): print("✅ البوت متصل وجاهز للعمل!")
+async def on_ready():
+    print("✅ البوت متصل وجاهز للعمل!")
+    auto_message.start() # تشغيل الرسالة التلقائية
 
 bot.run(os.getenv("DISCORD_TOKEN"))
