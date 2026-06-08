@@ -7,7 +7,7 @@ import ast
 from openai import OpenAI
 
 # --- الإعدادات ---
-client = OpenAI(api_key="YOUR_OPENAI_API_KEY") 
+client = OpenAI(api_key=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) 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
