@@ -6,13 +6,13 @@ import re
 from openai import OpenAI
 from dotenv import load_dotenv
 
-# تحميل الإعدادات
+# تحميل الإعدادات (ستقرأ من البيئة في Render)
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# الإعدادات (تأكد من مطابقة الأرقام لـ IDs سيرفرك)
+# الثوابت (تأكد من مطابقتها لأرقام سيرفرك)
 INVOICE_CH = 1513129732378726440
 VOUCH_CH = 1511668692889370735
 OWNER_IDS = [1511553830838468628, 1511553933053661224]
