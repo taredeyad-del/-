@@ -6,16 +6,17 @@ import re
 from openai import OpenAI
 from dotenv import load_dotenv
 
+# تحميل الإعدادات
 load_dotenv()
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# الإعدادات
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# الإعدادات (تأكد من مطابقة الأرقام لـ IDs سيرفرك)
 INVOICE_CH = 1513129732378726440
 VOUCH_CH = 1511668692889370735
 OWNER_IDS = [1511553830838468628, 1511553933053661224]
-BAD_WORDS = ["كلمة1", "كلمة2"] # أضف هنا كلماتك الممنوعة
+BAD_WORDS = ["كلمة1", "كلمة2"]
 
 # قاعدة بيانات الفواتير
 db = sqlite3.connect("invoices.db", check_same_thread=False)
@@ -97,7 +98,7 @@ async def سحب(ctx):
     count = 0
     async for message in channel.history(limit=50):
         if message.embeds:
-            full_text = "".join([m.name + m.value for m in message.embeds[0].fields]) + message.embeds[0].title
+            full_text = "".join([f"{f.name} {f.value}" for f in message.embeds[0].fields]) + (message.embeds[0].title or "")
             match = re.search(r'\d{8}', full_text)
             if match:
                 cursor.execute("INSERT OR REPLACE INTO invoices VALUES (?, ?)", (match.group(0), str(message.embeds[0].to_dict())))
@@ -116,5 +117,8 @@ async def on_message(message):
     if not message.author.bot and any(w in message.content.lower() for w in BAD_WORDS):
         await message.delete()
     else: await bot.process_commands(message)
+
+@bot.event
+async def on_ready(): print("✅ البوت متصل وجاهز للعمل!")
 
 bot.run(os.getenv("DISCORD_TOKEN"))
