@@ -3,12 +3,13 @@ from discord.ext import commands, tasks
 import os
 import sqlite3
 import re
+import ast
 from openai import OpenAI
 from dotenv import load_dotenv
 from flask import Flask
 from threading import Thread
 
-# --- إعدادات Keep-Alive للبقاء أونلاين 24/7 ---
+# --- إعدادات Keep-Alive ---
 app = Flask('')
 @app.route('/')
 def home(): return "البوت يعمل الآن!"
@@ -17,9 +18,8 @@ def keep_alive():
     t = Thread(target=run)
     t.start()
 
-# تحميل الإعدادات
 load_dotenv()
-keep_alive() # تشغيل السيرفر المصغر
+keep_alive()
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 intents = discord.Intents.all()
@@ -28,22 +28,20 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 # الثوابت
 INVOICE_CH = 1513129732378726440
 VOUCH_CH = 1511668692889370735
-AUTO_MSG_CH = 1511557359800025088 # الروم الخاص بك
+AUTO_MSG_CH = 1511557359800025088
 OWNER_IDS = [1511553830838468628, 1511553933053661224]
 BAD_WORDS = ["كلمة1", "كلمة2"]
 
-# قاعدة بيانات الفواتير
 db = sqlite3.connect("invoices.db", check_same_thread=False)
 cursor = db.cursor()
 cursor.execute("CREATE TABLE IF NOT EXISTS invoices (id TEXT PRIMARY KEY, data TEXT)")
 db.commit()
 
-# --- مهمة الرسالة التلقائية ---
-@tasks.loop(seconds=10)
+@tasks.loop(seconds=600) # تم تعديل الوقت لـ 10 دقائق لتجنب الحظر
 async def auto_message():
     channel = bot.get_channel(AUTO_MSG_CH)
     if channel:
-        await channel.send("هذه رسالة تلقائية كل 10 ثوانٍ!")
+        await channel.send("هذه رسالة تلقائية!")
 
 def is_admin(ctx):
     return ctx.author.id in OWNER_IDS or any(role.id in OWNER_IDS for role in ctx.author.roles)
@@ -94,40 +92,56 @@ async def vouch(ctx, member: discord.Member):
 # --- أوامر الإدارة ---
 @bot.command()
 @commands.check(is_admin)
-async def طلب(ctx): await delete_command(ctx); await ctx.channel.edit(name="طلب • 🔵")
+async def طلب(ctx): await delete_command(ctx); await ctx.channel.edit(name="طلب-🔵")
 @bot.command()
 @commands.check(is_admin)
-async def تمارسالطلب(ctx): await delete_command(ctx); await ctx.channel.edit(name="طلب • 🟡")
+async def تمارسالطلب(ctx): await delete_command(ctx); await ctx.channel.edit(name="طلب-🟡")
 @bot.command()
 @commands.check(is_admin)
-async def تماستلامطلب(ctx): await delete_command(ctx); await ctx.channel.edit(name="طلب • 🟢")
+async def تماستلامطلب(ctx): await delete_command(ctx); await ctx.channel.edit(name="طلب-🟢")
 @bot.command()
 @commands.check(is_admin)
-async def شكوى(ctx): await delete_command(ctx); await ctx.channel.edit(name="شكوة • 🔴")
+async def شكوى(ctx): await delete_command(ctx); await ctx.channel.edit(name="شكوة-🔴")
 @bot.command()
 @commands.check(is_admin)
-async def اغلاق(ctx): await delete_command(ctx); await ctx.channel.edit(name="شكوة • 🟢")
+async def اغلاق(ctx): await delete_command(ctx); await ctx.channel.edit(name="شكوة-🟢")
 @bot.command()
 @commands.check(is_admin)
 async def حذفروم(ctx): await delete_command(ctx); await ctx.channel.delete()
 
-# --- نظام السحب الذكي ---
+# --- نظام السحب الجديد ---
 @bot.command()
 async def سحب(ctx):
     await delete_command(ctx)
-    channel = bot.get_channel(INVOICE_CH)
-    count = 0
-    async for message in channel.history(limit=50):
-        if message.embeds:
-            full_text = "".join([f"{f.name} {f.value}" for f in message.embeds[0].fields]) + (message.embeds[0].title or "")
+    if ctx.message.reference and ctx.message.reference.resolved:
+        target_message = ctx.message.reference.resolved
+        if target_message.embeds:
+            embed = target_message.embeds[0]
+            full_text = "".join([f"{f.name} {f.value}" for f in embed.fields]) + (embed.title or "")
             match = re.search(r'\d{8}', full_text)
             if match:
-                cursor.execute("INSERT OR REPLACE INTO invoices VALUES (?, ?)", (match.group(0), str(message.embeds[0].to_dict())))
-                count += 1
-    db.commit()
-    await ctx.send(f"✅ تم سحب {count} فاتورة!", delete_after=5)
+                cursor.execute("INSERT OR REPLACE INTO invoices VALUES (?, ?)", (match.group(0), str(embed.to_dict())))
+                db.commit()
+                await ctx.send(f"✅ تم حفظ الفاتورة رقم: {match.group(0)}", delete_after=5)
+            else: await ctx.send("❌ لم أجد رقم فاتورة في هذه الرسالة.", delete_after=5)
+        else: await ctx.send("❌ هذه الرسالة لا تحتوي على بيانات.", delete_after=5)
+    else: await ctx.send("⚠️ قم بعمل Reply على الفاتورة لاستخدام هذا الأمر.", delete_after=5)
 
-# --- الذكاء الاصطناعي والحماية ---
+@bot.command()
+@commands.check(is_admin)
+async def فاتورة(ctx, invoice_id: str):
+    await delete_command(ctx)
+    cursor.execute("SELECT data FROM invoices WHERE id = ?", (invoice_id,))
+    result = cursor.fetchone()
+    if result:
+        embed = discord.Embed.from_dict(ast.literal_eval(result[0]))
+        embed.add_field(name="🔗 رابط المتجر", value="[اضغط هنا للتوجه للمتجر](https://bsell.mysellauth.com/)", inline=False)
+        await ctx.send("✅ تفضل الفاتورة المطلوبة:", embed=embed)
+        try: await ctx.channel.edit(name="طلب-🟡")
+        except: pass
+    else: await ctx.send(f"❌ الفاتورة {invoice_id} غير موجودة.", delete_after=5)
+
+# --- الذكاء الاصطناعي ---
 @bot.command()
 async def helpot(ctx, *, prompt):
     res = client.chat.completions.create(model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}])
@@ -141,7 +155,7 @@ async def on_message(message):
 
 @bot.event
 async def on_ready():
-    print("✅ البوت متصل وجاهز للعمل!")
-    auto_message.start() # تشغيل الرسالة التلقائية
+    print("✅ البوت متصل!")
+    auto_message.start()
 
 bot.run(os.getenv("DISCORD_TOKEN"))
