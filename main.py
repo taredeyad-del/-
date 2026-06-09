@@ -37,7 +37,7 @@ cursor = db.cursor()
 cursor.execute("CREATE TABLE IF NOT EXISTS invoices (id TEXT PRIMARY KEY, data TEXT)")
 db.commit()
 
-@tasks.loop(seconds=600) # تم تعديل الوقت لـ 10 دقائق لتجنب الحظر
+@tasks.loop(seconds=600)
 async def auto_message():
     channel = bot.get_channel(AUTO_MSG_CH)
     if channel:
@@ -109,7 +109,7 @@ async def اغلاق(ctx): await delete_command(ctx); await ctx.channel.edit(nam
 @commands.check(is_admin)
 async def حذفروم(ctx): await delete_command(ctx); await ctx.channel.delete()
 
-# --- نظام السحب الجديد ---
+# --- نظام السحب ---
 @bot.command()
 async def سحب(ctx):
     await delete_command(ctx)
@@ -123,23 +123,24 @@ async def سحب(ctx):
                 cursor.execute("INSERT OR REPLACE INTO invoices VALUES (?, ?)", (match.group(0), str(embed.to_dict())))
                 db.commit()
                 await ctx.send(f"✅ تم حفظ الفاتورة رقم: {match.group(0)}", delete_after=5)
-            else: await ctx.send("❌ لم أجد رقم فاتورة في هذه الرسالة.", delete_after=5)
+            else: await ctx.send("❌ لم أجد رقم فاتورة (8 أرقام) في هذه الرسالة.", delete_after=5)
         else: await ctx.send("❌ هذه الرسالة لا تحتوي على بيانات.", delete_after=5)
     else: await ctx.send("⚠️ قم بعمل Reply على الفاتورة لاستخدام هذا الأمر.", delete_after=5)
 
+# --- نظام الفاتورة الجديد (تلقائي) ---
 @bot.command()
 @commands.check(is_admin)
-async def فاتورة(ctx, invoice_id: str):
+async def فاتورة(ctx):
     await delete_command(ctx)
-    cursor.execute("SELECT data FROM invoices WHERE id = ?", (invoice_id,))
+    cursor.execute("SELECT data FROM invoices ORDER BY rowid DESC LIMIT 1")
     result = cursor.fetchone()
     if result:
         embed = discord.Embed.from_dict(ast.literal_eval(result[0]))
         embed.add_field(name="🔗 رابط المتجر", value="[اضغط هنا للتوجه للمتجر](https://bsell.mysellauth.com/)", inline=False)
-        await ctx.send("✅ تفضل الفاتورة المطلوبة:", embed=embed)
+        await ctx.send("✅ تفضل الفاتورة:", embed=embed)
         try: await ctx.channel.edit(name="طلب-🟡")
         except: pass
-    else: await ctx.send(f"❌ الفاتورة {invoice_id} غير موجودة.", delete_after=5)
+    else: await ctx.send("❌ لا توجد فواتير مسحوبة مسبقاً!", delete_after=5)
 
 # --- الذكاء الاصطناعي ---
 @bot.command()
