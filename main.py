@@ -50,13 +50,12 @@ async def delete_command(ctx):
     try: await ctx.message.delete()
     except: pass
 
-# --- نظام التقييم ---
+# --- (بقية كود نظام التقييم - RatingButtons & vouch - كما هو) ---
 class RatingButtons(discord.ui.View):
     def __init__(self, author, comment):
         super().__init__(timeout=None)
         self.author = author
         self.comment = comment
-
     async def send_vouch(self, interaction, stars):
         vouch_channel = bot.get_channel(VOUCH_CH)
         if vouch_channel:
@@ -66,7 +65,6 @@ class RatingButtons(discord.ui.View):
             embed.add_field(name="التقييم", value=f"{'⭐' * stars}", inline=False)
             await vouch_channel.send(embed=embed)
         await interaction.response.send_message("تم إرسال تقييمك!", ephemeral=True)
-
     @discord.ui.button(label="⭐", style=discord.ButtonStyle.secondary)
     async def s1(self, i, b): await self.send_vouch(i, 1)
     @discord.ui.button(label="⭐⭐", style=discord.ButtonStyle.secondary)
@@ -123,24 +121,48 @@ async def سحب(ctx):
                 cursor.execute("INSERT OR REPLACE INTO invoices VALUES (?, ?)", (match.group(0), str(embed.to_dict())))
                 db.commit()
                 await ctx.send(f"✅ تم حفظ الفاتورة رقم: {match.group(0)}", delete_after=5)
-            else: await ctx.send("❌ لم أجد رقم فاتورة (8 أرقام) في هذه الرسالة.", delete_after=5)
+            else: await ctx.send("❌ لم أجد رقم فاتورة (8 أرقام).", delete_after=5)
         else: await ctx.send("❌ هذه الرسالة لا تحتوي على بيانات.", delete_after=5)
-    else: await ctx.send("⚠️ قم بعمل Reply على الفاتورة لاستخدام هذا الأمر.", delete_after=5)
+    else: await ctx.send("⚠️ قم بعمل Reply على الفاتورة.", delete_after=5)
 
-# --- نظام الفاتورة الجديد (تلقائي) ---
+# --- نظام الفاتورة الجديد والمطور ---
 @bot.command()
 @commands.check(is_admin)
 async def فاتورة(ctx):
     await delete_command(ctx)
-    cursor.execute("SELECT data FROM invoices ORDER BY rowid DESC LIMIT 1")
-    result = cursor.fetchone()
-    if result:
-        embed = discord.Embed.from_dict(ast.literal_eval(result[0]))
-        embed.add_field(name="🔗 رابط المتجر", value="[اضغط هنا للتوجه للمتجر](https://bsell.mysellauth.com/)", inline=False)
-        await ctx.send("✅ تفضل الفاتورة:", embed=embed)
-        try: await ctx.channel.edit(name="طلب-🟡")
-        except: pass
-    else: await ctx.send("❌ لا توجد فواتير مسحوبة مسبقاً!", delete_after=5)
+    await ctx.send("🔗 يرجى إرسال الرابط المطلوب وضعه في الفاتورة:")
+    
+    def check(m): return m.author == ctx.author and m.channel == ctx.channel
+    try:
+        url_msg = await bot.wait_for('message', timeout=60.0, check=check)
+        link = url_msg.content
+        await url_msg.delete()
+        
+        cursor.execute("SELECT data FROM invoices ORDER BY rowid DESC LIMIT 1")
+        result = cursor.fetchone()
+        
+        if result:
+            embed_data = ast.literal_eval(result[0])
+            invoice_id = "غير معروف"
+            
+            # البحث عن رقم الفاتورة في الـ Embed القديم
+            for field in embed_data.get('fields', []):
+                if "Invoice ID" in field['name']: invoice_id = field['value']
+            
+            new_embed = discord.Embed(title=f"Invoice #{invoice_id}", color=discord.Color.blue())
+            
+            # فلترة البيانات (إظهار المهم فقط)
+            for field in embed_data.get('fields', []):
+                if any(x in field['name'] for x in ["Price", "Product", "Payment"]):
+                    new_embed.add_field(name=field['name'], value=field['value'], inline=False)
+            
+            new_embed.add_field(name="🔗 رابط المتجر", value=f"[اضغط هنا للتوجه للمتجر]({link})", inline=False)
+            
+            await ctx.send("✅ تفضل الفاتورة:", embed=new_embed)
+            try: await ctx.channel.edit(name="طلب-🟡")
+            except: pass
+        else: await ctx.send("❌ لا توجد فواتير مسحوبة!", delete_after=5)
+    except: await ctx.send("❌ انتهى الوقت أو حدث خطأ.", delete_after=5)
 
 # --- الذكاء الاصطناعي ---
 @bot.command()
