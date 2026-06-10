@@ -31,24 +31,45 @@ VOUCH_CH = 1511668692889370735
 AUTO_MSG_CH = 1511557359800025088
 OWNER_IDS = [1511553830838468628, 1511553933053661224]
 BAD_WORDS = ["كلمة1", "كلمة2"]
+ticket_sessions = {} # تتبع جلسات الذكاء الاصطناعي
 
 db = sqlite3.connect("invoices.db", check_same_thread=False)
 cursor = db.cursor()
 cursor.execute("CREATE TABLE IF NOT EXISTS invoices (id TEXT PRIMARY KEY, data TEXT)")
 db.commit()
 
-@tasks.loop(seconds=600)
-async def auto_message():
-    channel = bot.get_channel(AUTO_MSG_CH)
-    if channel:
-        await channel.send("هذه رسالة تلقائية!")
-
+# --- الأنظمة الأساسية ---
 def is_admin(ctx):
     return ctx.author.id in OWNER_IDS or any(role.id in OWNER_IDS for role in ctx.author.roles)
 
 async def delete_command(ctx):
     try: await ctx.message.delete()
     except: pass
+
+# --- نظام التذكرة الذكية (UI) ---
+class TicketLauncher(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="🎫 فتح تذكرة ذكية", style=discord.ButtonStyle.primary, custom_id="open_ticket")
+    async def open_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
+        guild = interaction.guild
+        member = interaction.user
+        overwrites = {
+            guild.default_role: discord.PermissionOverwrite(read_messages=False),
+            member: discord.PermissionOverwrite(read_messages=True, send_messages=True),
+            guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
+        }
+        channel = await guild.create_text_channel(f"تذكرة-{member.name}", overwrites=overwrites)
+        ticket_sessions[channel.id] = 0
+        await channel.send(f"أهلاً {member.mention}، أنا مساعدك الذكي في متجر Bsell، كيف يمكنني مساعدتك؟")
+        await interaction.response.send_message(f"✅ تم فتح تذكرتك: {channel.mention}", ephemeral=True)
+
+@bot.command()
+@commands.check(is_admin)
+async def setup_ticket(ctx):
+    embed = discord.Embed(title="دعم متجر Bsell", description="اضغط على الزر أدناه لفتح تذكرة ذكية.", color=discord.Color.blue())
+    await ctx.send(embed=embed, view=TicketLauncher())
 
 # --- نظام التقييم ---
 class RatingButtons(discord.ui.View):
@@ -89,7 +110,7 @@ async def vouch(ctx, member: discord.Member):
         await comment_msg.delete()
     except: await msg.delete()
 
-# --- أوامر الإدارة ---
+# --- أوامر الإدارة والسحب والفاتورة ---
 @bot.command()
 @commands.check(is_admin)
 async def طلب(ctx): await delete_command(ctx); await ctx.channel.edit(name="طلب-🔵")
@@ -109,7 +130,6 @@ async def اغلاق(ctx): await delete_command(ctx); await ctx.channel.edit(nam
 @commands.check(is_admin)
 async def حذفروم(ctx): await delete_command(ctx); await ctx.channel.delete()
 
-# --- نظام السحب ---
 @bot.command()
 async def سحب(ctx):
     await delete_command(ctx)
@@ -127,7 +147,6 @@ async def سحب(ctx):
         else: await ctx.send("❌ هذه الرسالة لا تحتوي على بيانات.", delete_after=5)
     else: await ctx.send("⚠️ قم بعمل Reply على الفاتورة.", delete_after=5)
 
-# --- نظام الفاتورة المطور ---
 @bot.command()
 @commands.check(is_admin)
 async def فاتورة(ctx):
@@ -148,9 +167,7 @@ async def فاتورة(ctx):
                 if "Invoice ID" in field['name']: invoice_id = field['value']
             
             new_embed = discord.Embed(title=f"Invoice #{invoice_id}", color=discord.Color.blue())
-            # إضافة الرابط في الأعلى
             new_embed.add_field(name="🔗 رابط المتجر", value=f"[اضغط هنا للتوجه للمتجر]({link})", inline=False)
-            # فلترة البيانات المهمة فقط
             for field in embed_data.get('fields', []):
                 if any(x in field['name'] for x in ["Price", "Product", "Payment"]):
                     new_embed.add_field(name=field['name'], value=field['value'], inline=False)
@@ -161,21 +178,36 @@ async def فاتورة(ctx):
         else: await ctx.send("❌ لا توجد فواتير مسحوبة!", delete_after=5)
     except: await ctx.send("❌ انتهى الوقت أو حدث خطأ.", delete_after=5)
 
-# --- الذكاء الاصطناعي ---
-@bot.command()
-async def helpot(ctx, *, prompt):
-    res = client.chat.completions.create(model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}])
-    await ctx.send(res.choices[0].message.content)
-
+# --- الحدث الرئيسي ---
 @bot.event
 async def on_message(message):
-    if not message.author.bot and any(w in message.content.lower() for w in BAD_WORDS):
-        await message.delete()
-    else: await bot.process_commands(message)
+    if message.author.bot: return
+
+    # منطق الرد الذكي
+    if message.channel.id in ticket_sessions:
+        if ticket_sessions[message.channel.id] >= 20:
+            await message.channel.send("⚠️ انتهى حد الرسائل، يرجى التواصل مع الإدارة.")
+        else:
+            async with message.channel.typing():
+                try:
+                    response = client.chat.completions.create(
+                        model="gpt-3.5-turbo",
+                        messages=[
+                            {"role": "system", "content": "أنت مساعد ذكي لمتجر Bsell. ردودك احترافية ولطيفة ومختصرة (لا تتجاوز 100 كلمة)."},
+                            {"role": "user", "content": message.content}
+                        ],
+                        max_tokens=150
+                    )
+                    await message.reply(response.choices[0].message.content)
+                    ticket_sessions[message.channel.id] += 1
+                except Exception as e: print(e)
+    
+    await bot.process_commands(message)
 
 @bot.event
 async def on_ready():
-    print("✅ البوت متصل!")
+    bot.add_view(TicketLauncher())
     auto_message.start()
+    print("✅ البوت متصل ونظام التذاكر جاهز!")
 
 bot.run(os.getenv("DISCORD_TOKEN"))
