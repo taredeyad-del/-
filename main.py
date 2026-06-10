@@ -4,6 +4,7 @@ import os
 import sqlite3
 import re
 import ast
+import datetime
 from openai import OpenAI
 from dotenv import load_dotenv
 from flask import Flask
@@ -30,8 +31,8 @@ INVOICE_CH = 1513129732378726440
 VOUCH_CH = 1511668692889370735
 AUTO_MSG_CH = 1511557359800025088
 OWNER_IDS = [1511553830838468628, 1511553933053661224]
-BAD_WORDS = ["كلمة1", "كلمة2"]
-ticket_sessions = {} # تتبع جلسات الذكاء الاصطناعي
+BAD_WORDS = ["كلمة1", "كلمة2"] # أضف الكلمات المسيئة هنا
+ticket_sessions = {} 
 
 db = sqlite3.connect("invoices.db", check_same_thread=False)
 cursor = db.cursor()
@@ -46,7 +47,12 @@ async def delete_command(ctx):
     try: await ctx.message.delete()
     except: pass
 
-# --- نظام التذكرة الذكية (UI) ---
+@tasks.loop(seconds=600)
+async def auto_message():
+    channel = bot.get_channel(AUTO_MSG_CH)
+    if channel: await channel.send("هذه رسالة تلقائية!")
+
+# --- نظام التذكرة الذكية ---
 class TicketLauncher(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -62,7 +68,7 @@ class TicketLauncher(discord.ui.View):
         }
         channel = await guild.create_text_channel(f"تذكرة-{member.name}", overwrites=overwrites)
         ticket_sessions[channel.id] = 0
-        await channel.send(f"أهلاً {member.mention}، أنا مساعدك الذكي في متجر Bsell، كيف يمكنني مساعدتك؟")
+        await channel.send(f"أهلاً {member.mention}، أنا مساعدك الذكي في متجر Bsell.\n⚠️ **تنبيه:** لديك 15 رسالة فقط في هذه التذكرة.")
         await interaction.response.send_message(f"✅ تم فتح تذكرتك: {channel.mention}", ephemeral=True)
 
 @bot.command()
@@ -183,24 +189,37 @@ async def فاتورة(ctx):
 async def on_message(message):
     if message.author.bot: return
 
-    # منطق الرد الذكي
+    # 1. نظام الحظر (تايم أوت)
+    if any(w in message.content.lower() for w in BAD_WORDS):
+        try:
+            await message.author.timeout(datetime.timedelta(minutes=15), reason="إساءة للبوت")
+            await message.channel.send(f"🚫 {message.author.mention} تم إعطاؤك تايم أوت 15 دقيقة بسبب الإساءة.")
+            await message.delete()
+            return
+        except Exception as e: print(e)
+
+    # 2. نظام التذاكر
     if message.channel.id in ticket_sessions:
-        if ticket_sessions[message.channel.id] >= 20:
-            await message.channel.send("⚠️ انتهى حد الرسائل، يرجى التواصل مع الإدارة.")
-        else:
-            async with message.channel.typing():
-                try:
-                    response = client.chat.completions.create(
-                        model="gpt-3.5-turbo",
-                        messages=[
-                            {"role": "system", "content": "أنت مساعد ذكي لمتجر Bsell. ردودك احترافية ولطيفة ومختصرة (لا تتجاوز 100 كلمة)."},
-                            {"role": "user", "content": message.content}
-                        ],
-                        max_tokens=150
-                    )
-                    await message.reply(response.choices[0].message.content)
-                    ticket_sessions[message.channel.id] += 1
-                except Exception as e: print(e)
+        ticket_sessions[message.channel.id] += 1
+        
+        if ticket_sessions[message.channel.id] >= 15:
+            await message.channel.send("🚫 تم استهلاك حد الرسائل (15). سيتم إغلاق التيكت.")
+            await message.channel.edit(name=f"closed-{message.channel.name}")
+            await message.channel.set_permissions(message.guild.default_role, send_messages=False)
+            return
+
+        async with message.channel.typing():
+            try:
+                response = client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": "أنت مساعد ذكي لمتجر Bsell. ردودك احترافية ولطيفة ومختصرة."},
+                        {"role": "user", "content": message.content}
+                    ],
+                    max_tokens=150
+                )
+                await message.reply(response.choices[0].message.content)
+            except Exception as e: print(e)
     
     await bot.process_commands(message)
 
